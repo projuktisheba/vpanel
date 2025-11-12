@@ -114,7 +114,7 @@ const tableData: Order[] = [
   },
 ];
 
-export default function BasicTableOne() {
+export default function DatabaseTable() {
   const [searchColumn, setSearchColumn] = useState("database");
   const [searchQuery, setSearchQuery] = useState("");
 

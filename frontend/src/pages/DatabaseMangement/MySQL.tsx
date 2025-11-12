@@ -1,16 +1,17 @@
 import PageBreadcrumb from "../../components/common/PageBreadCrumb";
 import ComponentCard from "../../components/common/ComponentCard";
 import PageMeta from "../../components/common/PageMeta";
-import DatabaseTable from "../../components/tables/BasicTables/DatabaseTable";
 import Form from "../../components/form/Form";
 import Button from "../../components/ui/button/Button";
 import Input from "../../components/form/input/InputField";
 import Label from "../../components/form/Label";
-import { useState, FormEvent } from "react";
+import { useState, FormEvent, useEffect } from "react";
 
 import Select from "../../components/form/Select";
 import { ArrowRightIcon } from "../../icons";
 import { databaseManager } from "../../services/databaseManager.service";
+import DataTable from "../../components/tables/BasicTables/DataTable";
+import { DatabaseMeta } from "../../interfaces/databaseManager.interface";
 interface Option {
   value: string;
   label: string;
@@ -21,6 +22,8 @@ export default function MySQL() {
   const [username, setUsername] = useState("");
   const [databaseNameError, setDatabaseNameError] = useState("");
   const [userNameError, setUsernameError] = useState("");
+  const [databases, setDatabases] = useState<DatabaseMeta[]>([]);
+  const [loading, setLoading] = useState(false);
 
   // Fetch available users
   const users = [
@@ -61,25 +64,89 @@ export default function MySQL() {
     }
     (async () => {
       try {
-        const data =  await databaseManager.createMySQLDB(databaseName, username)
-        console.log(data)
+        const data = await databaseManager.createMySQLDB(
+          databaseName,
+          username
+        );
+        console.log(data);
         // success - clear form and errors
         setDatabaseName("");
         setUsername("");
         setDatabaseNameError("");
         setUsernameError("");
         alert(data.message);
+        fetchDatabases()
       } catch (err) {
         console.error(err);
-        setDatabaseNameError("An unexpected error occurred while creating the database");
+        setDatabaseNameError(
+          "An unexpected error occurred while creating the database"
+        );
       }
     })();
   };
+
+  const fetchDatabases = async () => {
+  setLoading(true);
+  try {
+    const res = await databaseManager.listMySQLDB(); 
+    // res here is the whole API response, so extract the databases array
+    setDatabases(Array.isArray(res.databases) ? res.databases : []);
+  } catch (err) {
+    console.error("Failed to fetch databases:", err);
+    setDatabases([]);
+  } finally {
+    setLoading(false);
+  }
+};
+
+
+  useEffect(() => {
+    fetchDatabases();
+  }, []);
+
+  // Database table columns
+  const columns = [
+    { key: "dbName", label: "Database Name", className:"font-medium text-gray-800 text-theme-sm dark:text-white/90", render: (row: DatabaseMeta) => row.dbName,},
+    
+    {
+      key: "users",
+      label: "Users",
+       className:"py-3 text-gray-500 text-theme-sm dark:text-gray-400",
+      render: (row: DatabaseMeta) => row?.users?.join(", "),
+    },
+    { key: "tableCount", label: "Tables",  className:"py-3 text-gray-500 text-theme-sm dark:text-gray-400" , render: (row: DatabaseMeta) => row.tableCount,},
+    {
+      key: "databaseSizeMB",
+      label: "Size (MB)",
+       className:"py-3 text-gray-500 text-theme-sm dark:text-gray-400",
+      render: (row: DatabaseMeta) => row.databaseSizeMB?.toFixed(2),
+    },
+    {
+      key: "createdAt",
+      label: "Created At",
+       className:"py-3 text-gray-500 text-theme-sm dark:text-gray-400",
+      render: (row: DatabaseMeta) =>
+        row.createdAt ? new Date(row.createdAt).toLocaleString() : "-",
+    },
+    {
+      key: "updatedAt",
+      label: "Last Updated",
+       className:"py-3 text-gray-500 text-theme-sm dark:text-gray-400",
+      render: (row: DatabaseMeta) =>
+        row.updatedAt ? new Date(row.updatedAt).toLocaleString() : "-",
+    },
+  ];
+
+  // Table search options
+  const searchOptions = [
+    { value: "users", label: "User" },
+    { value: "dbName", label: "Database" },
+  ];
   return (
     <>
       <PageMeta title="MySQL" description="Manage MySQL Database" />
       <PageBreadcrumb pageTitle="Manage MySQL Database" />
-
+      {loading && ""}
       <div className="space-y-6">
         <ComponentCard title="Create New Database">
           <Form onSubmit={createNewDatabase}>
@@ -124,7 +191,8 @@ export default function MySQL() {
           </Form>
         </ComponentCard>
         <ComponentCard title="List of Database">
-          <DatabaseTable />
+          <DataTable data={databases} columns={columns} searchOptions={searchOptions} />
+          {/* <DatabaseTable/> */}
         </ComponentCard>
       </div>
     </>

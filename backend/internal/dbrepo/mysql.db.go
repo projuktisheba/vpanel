@@ -118,81 +118,80 @@ func databaseExists(db *sql.DB, dbName string) (bool, error) {
 //   - []models.DatabaseMeta: list of databases with metadata
 //   - error: if connection or query fails
 func (mysql *MySQLManagerRepo) ListDatabasesWithMeta(dsn string) ([]models.DatabaseMeta, error) {
-	// Connect to MySQL server using provided DSN
 	db, err := sql.Open("mysql", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to MySQL: %v", err)
 	}
 	defer db.Close()
 
-	// Validate connection
 	if err = db.Ping(); err != nil {
 		return nil, fmt.Errorf("failed to ping MySQL: %v", err)
 	}
 
-	// Query all non-system databases
+	// List all non-system databases
 	dbQuery := `
 		SELECT schema_name
 		FROM information_schema.schemata
 		WHERE schema_name NOT IN ('information_schema','mysql','performance_schema','sys')
 		ORDER BY schema_name;
 	`
-
-	dbRows, err := db.Query(dbQuery)
+	rows, err := db.Query(dbQuery)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch database list: %v", err)
 	}
-	defer dbRows.Close()
+	defer rows.Close()
 
-	// Slice to hold all database metadata
 	var databases []models.DatabaseMeta
 
-	// Iterate over each database
-	for dbRows.Next() {
+	for rows.Next() {
 		var dbName string
-		if err := dbRows.Scan(&dbName); err != nil {
+		if err := rows.Scan(&dbName); err != nil {
 			return nil, err
 		}
 
-		// Initialize metadata struct for this database
 		meta := models.DatabaseMeta{
-			DBName: dbName,
+			DBName:     dbName,
+			UpdatedAt:  nil,
+			TableCount: 0,
 		}
 
-		// Fetch table count, total data size, total index size, last update time
+		// Table metadata
 		tableQuery := `
 			SELECT 
 				COUNT(*) AS table_count,
-				IFNULL(SUM(DATA_LENGTH/1024/1024),0) AS data_size_mb,
-				IFNULL(SUM(INDEX_LENGTH/1024/1024),0) AS index_size_mb,
-				MAX(UPDATE_TIME) AS last_update
+				IFNULL(SUM(DATA_LENGTH + INDEX_LENGTH)/1024/1024, 0) AS total_size_mb,
+				MIN(CREATE_TIME) AS created_at,
+    			MAX(UPDATE_TIME) AS updated_at
 			FROM information_schema.tables
 			WHERE table_schema = ?;
 		`
 
-		var lastUpdate sql.NullTime
+		var lastUpdate, firstTableCreated sql.NullTime
 		err := db.QueryRow(tableQuery, dbName).Scan(
 			&meta.TableCount,
-			&meta.DataSizeMB,
-			&meta.IndexSizeMB,
+			&meta.DatabaseSizeMB,
 			&lastUpdate,
+			&firstTableCreated,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch table metadata for database %s: %v", dbName, err)
 		}
 
-		// Set last update if available
 		if lastUpdate.Valid {
-			meta.LastUpdate = &lastUpdate.Time
+			meta.UpdatedAt = &lastUpdate.Time
+		}
+		if firstTableCreated.Valid {
+			meta.CreatedAt = &firstTableCreated.Time // approximate db creation
 		}
 
-		// Optional: fetch users who have privileges on this database
+		// Users with privileges
 		userQuery := `
-			SELECT DISTINCT GRANTEE
+			SELECT DISTINCT 
+				TRIM(BOTH '\'' FROM SUBSTRING_INDEX(GRANTEE, '@', 1)) AS username
 			FROM information_schema.SCHEMA_PRIVILEGES
 			WHERE TABLE_SCHEMA = ?;
-		`
 
+		`
 		userRows, err := db.Query(userQuery, dbName)
 		if err == nil {
 			var users []string
@@ -206,12 +205,10 @@ func (mysql *MySQLManagerRepo) ListDatabasesWithMeta(dsn string) ([]models.Datab
 			userRows.Close()
 		}
 
-		// Append this database metadata to the slice
 		databases = append(databases, meta)
 	}
 
-	// Check for iteration errors
-	if err = dbRows.Err(); err != nil {
+	if err = rows.Err(); err != nil {
 		return nil, err
 	}
 
@@ -251,8 +248,7 @@ func (mysql *MySQLManagerRepo) ListTablesWithMeta(dsn, dbName string) ([]models.
 			TABLE_ROWS,
 			ROUND(DATA_LENGTH/1024/1024, 2) AS data_length_mb,
 			ROUND(INDEX_LENGTH/1024/1024, 2) AS index_length_mb,
-			CREATE_TIME,
-			TABLE_COMMENT
+			CREATE_TIME
 		FROM information_schema.tables
 		WHERE table_schema = ?
 		ORDER BY TABLE_NAME;
@@ -275,8 +271,7 @@ func (mysql *MySQLManagerRepo) ListTablesWithMeta(dsn, dbName string) ([]models.
 			&t.TableRows,
 			&t.DataLengthMB,
 			&t.IndexLengthMB,
-			&t.CreateTime,
-			&t.TableComment,
+			&t.CreateAt,
 		); err != nil {
 			return nil, err
 		}

@@ -1,27 +1,20 @@
-import axios, { AxiosInstance } from "axios";
+// src/services/authService.ts
+import axiosInstance from "../hooks/AxiosInstance";
 import { LoginCredentials, AuthResponse } from "../interfaces/auth.interface";
 import { tokenUtils } from "../utils/tokenUtils";
-import { API_BASE_URL } from "../config/apiConfig";
-
-// Create axios instance
-const api: AxiosInstance = axios.create({
-  baseURL: API_BASE_URL,
-  headers: {
-    "Content-Type": "application/json",
-  },
-  withCredentials: true, // Optional: if backend uses cookies
-});
 
 export const authService = {
   // Login user
   login: async (credentials: LoginCredentials): Promise<AuthResponse> => {
     try {
-      const response = await api.post<AuthResponse>("/auth/signin", {
+      const response = await axiosInstance.post<AuthResponse>("/auth/signin", {
         username: credentials.email,
         password: credentials.password,
       });
 
       const data = response.data;
+
+      // Store tokens and user info
       tokenUtils.setTokens(data.accessToken, data.refreshToken);
       tokenUtils.setUser(data.user);
 
@@ -36,18 +29,10 @@ export const authService = {
     try {
       const refreshToken = tokenUtils.getRefreshToken();
       if (refreshToken) {
-        await api.post(
-          "/auth/signout",
-          { refreshToken },
-          {
-            headers: {
-              Authorization: `Bearer ${tokenUtils.getAccessToken()}`,
-            },
-          }
-        );
+        await axiosInstance.post("/auth/signout", { refreshToken });
       }
-    } catch (error) {
-      // Ignore logout error
+    } catch {
+      // Ignore logout errors
     } finally {
       tokenUtils.clearTokens();
     }
@@ -59,9 +44,12 @@ export const authService = {
       const refreshToken = tokenUtils.getRefreshToken();
       if (!refreshToken) throw new Error("No refresh token available");
 
-      const response = await api.post("/auth/refresh", { refreshToken });
-      const data = response.data;
+      const response = await axiosInstance.post<{ accessToken: string; refreshToken: string }>(
+        "/auth/refresh",
+        { refreshToken }
+      );
 
+      const data = response.data;
       tokenUtils.setTokens(data.accessToken, data.refreshToken);
       return data.accessToken;
     } catch (error: any) {
@@ -70,48 +58,29 @@ export const authService = {
     }
   },
 
-  // Generic request wrapper with token handling
-  fetchWithAuth: async (endpoint: string, options: any = {}): Promise<any> => {
-    let accessToken = tokenUtils.getAccessToken();
-
-    // Refresh if token is expired
-    if (accessToken && tokenUtils.isTokenExpired(accessToken)) {
-      try {
-        const newToken = await authService.refreshAccessToken();
-        accessToken = newToken;
-      } catch {
-        tokenUtils.clearTokens();
-        throw new Error("Session expired. Please login again.");
-      }
-    }
-
+  // Generic request wrapper with automatic token refresh
+  fetchWithAuth: async (endpoint: string, options: { method?: string; body?: any; headers?: any } = {}) => {
     try {
-      const response = await api.request({
+      const response = await axiosInstance.request({
         url: endpoint,
         method: options.method || "GET",
-        data: options.body || undefined,
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          ...(options.headers || {}),
-        },
+        data: options.body,
+        headers: options.headers || {},
       });
-
-      return response;
+      return response.data;
     } catch (error: any) {
-      // If 401, try one refresh attempt
+      // If 401, try refreshing token once
       if (error.response?.status === 401) {
         try {
-          const newToken = await authService.refreshAccessToken();
-          const retryResponse = await api.request({
+          await authService.refreshAccessToken();
+          // Retry original request after refresh
+          const retryResponse = await axiosInstance.request({
             url: endpoint,
             method: options.method || "GET",
-            data: options.body || undefined,
-            headers: {
-              Authorization: `Bearer ${newToken}`,
-              ...(options.headers || {}),
-            },
+            data: options.body,
+            headers: options.headers || {},
           });
-          return retryResponse;
+          return retryResponse.data;
         } catch {
           tokenUtils.clearTokens();
           throw new Error("Session expired. Please login again.");
