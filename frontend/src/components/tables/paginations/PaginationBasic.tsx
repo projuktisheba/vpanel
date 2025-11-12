@@ -1,5 +1,4 @@
-import { ChevronLeftIcon, ChevronRightIcon } from "../../../icons"
-
+import { ChevronLeftIcon } from "../../../icons";
 
 export default function PaginationBasic() {
   return (
@@ -80,7 +79,7 @@ export default function PaginationBasic() {
               className="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 inset-ring inset-ring-gray-700 hover:bg-white/5 focus:z-20 focus:outline-offset-0"
             >
               <span className="sr-only">Next</span>
-              <ChevronRightIcon aria-hidden="true" className="size-5" />
+              {/* <ChevronRightIcon aria-hidden="true" className="size-5" /> */}
             </a>
           </nav>
         </div>
