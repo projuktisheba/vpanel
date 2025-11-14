@@ -33,6 +33,7 @@ type JWTConfig struct {
 type DBConfig struct {
 	DSN    string
 	DEVDSN string
+	MySQLRootDSN string
 }
 
 type Config struct {

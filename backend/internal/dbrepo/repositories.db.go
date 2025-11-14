@@ -7,6 +7,7 @@ import (
 // DBRepository contains all individual repositories
 type DBRepository struct {
 	UserRepo    *UserRepo
+	DBRegistry *DatabaseRegistryRepo
 	MySQL    *MySQLManagerRepo
 }
 
@@ -14,6 +15,7 @@ type DBRepository struct {
 func NewDBRepository(db *pgxpool.Pool) *DBRepository {
 	return &DBRepository{
 		UserRepo:    NewUserRepo(db),
+		DBRegistry: newDatabaseRegistryRepo(db),
 		MySQL:    NewMySQLManagerRepo(),
 	}
 }

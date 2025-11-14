@@ -18,7 +18,7 @@ import (
 var handlerRepo *handlers.HandlerRepo
 
 
-func Routes(env string, db *dbrepo.DBRepository, jwt models.JWTConfig, infoLogger, errorLogger *log.Logger) http.Handler {
+func Routes(env string, db *dbrepo.DBRepository, jwt models.JWTConfig, infoLogger, errorLogger *log.Logger, mysqlRootDSN string) http.Handler {
 	mux := chi.NewRouter()
 
 	// --- Global middlewares ---
@@ -51,14 +51,14 @@ func Routes(env string, db *dbrepo.DBRepository, jwt models.JWTConfig, infoLogge
 	})
 
 	//get the handler repo
-	handlerRepo = handlers.NewHandlerRepo(db, jwt, infoLogger, errorLogger)
+	handlerRepo = handlers.NewHandlerRepo(db, jwt, infoLogger, errorLogger, mysqlRootDSN)
 	
 	// Mount Auth routes
 	mux.Mount("/api/v1/auth", authRoutes())
 	
 	// =========== Secure Routes ===========
 	// Mount Auth routes
-	mux.Mount("/api/v1/db", databaseManagerRoutes())
+	mux.Mount("/api/v1/db", databaseRegistryRoutes())
 
 	return mux
 }

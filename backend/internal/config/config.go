@@ -56,6 +56,7 @@ func Load() (models.Config, error) {
 	// DB settings
 	cfg.DB.DSN = os.Getenv("DB_DSN")
 	cfg.DB.DEVDSN = os.Getenv("DB_DSN_DEV")
+	cfg.DB.MySQLRootDSN = os.Getenv("MYSQL_ROOT_DSN")
 
 	return cfg, nil
 }

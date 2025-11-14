@@ -4,23 +4,23 @@ import (
 	"time"
 )
 
-// TableMeta holds metadata info for each table.
-type TableMeta struct {
-	TableName      string    `json:"tableName"`
-	Engine         string    `json:"engine"`
-	RowFormat      string    `json:"rowFormat"`
-	TableCollation string    `json:"tableCollation"`
-	TableRows      int64     `json:"table_rows"`
-	DataLengthMB   float64   `json:"dataLengthMB"`
-	IndexLengthMB  float64   `json:"indexLength"`
-	CreateAt       time.Time `json:"createdAt"`
+type DBUser struct {
+	ID        int64      `json:"id"`
+	Username  string     `json:"username"`
+	Password  string     `json:"password"`
+	CreatedAt time.Time  `json:"createdAt"`
+	UpdatedAt time.Time  `json:"updatedAt"`
+	DeletedAt *time.Time `json:"deletedAt,omitempty"`
 }
 
-type DatabaseMeta struct {
+type Database struct {
+	ID             int64      `json:"id"`
 	DBName         string     `json:"dbName"`
 	TableCount     int        `json:"tableCount"`
 	DatabaseSizeMB float64    `json:"databaseSizeMB"`
-	CreatedAt      *time.Time `json:"createdAt"` // MySQL doesn’t store DB create time directly
-	UpdatedAt      *time.Time `json:"updatedAt"` // Latest table update
-	Users          []string   `json:"users"`     // Users with privileges (optional)
+	UserID         int64      `json:"userId"`
+	CreatedAt      time.Time  `json:"createdAt"`
+	UpdatedAt      time.Time  `json:"updatedAt"`
+	DeletedAt      *time.Time `json:"deletedAt,omitempty"`
+	User           *DBUser    `json:"user,omitempty"`
 }

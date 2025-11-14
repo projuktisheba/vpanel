@@ -1,12 +1,13 @@
 package dbrepo
 
 import (
+	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log"
 
 	_ "github.com/go-sql-driver/mysql"
-	"github.com/projuktisheba/vpanel/backend/internal/models"
 )
 
 // ============================== MySQL Database Manager Repository ==============================
@@ -43,13 +44,8 @@ func (mysql *MySQLManagerRepo) CreateMySQLDatabase(rootDSN, dbName, username, pa
 			return fmt.Errorf("failed to check user: %v", err)
 		}
 		if !exists {
-			createUserQuery := fmt.Sprintf("CREATE USER '%s'@'%%' IDENTIFIED BY '%s';", username, password)
-			if _, err := db.Exec(createUserQuery); err != nil {
-				return fmt.Errorf("failed to create user '%s': %v", username, err)
-			}
 			log.Printf("User '%s' created successfully", username)
-		} else {
-			log.Printf("User '%s' already exists", username)
+			return errors.New("User not found")
 		}
 	}
 
@@ -80,6 +76,43 @@ func (mysql *MySQLManagerRepo) CreateMySQLDatabase(rootDSN, dbName, username, pa
 	return nil
 }
 
+// DropMySQLDatabase deletes a MySQL database if it exists.
+// Params:
+// - dsn: connection string for a MySQL user with privileges to drop databases (e.g., "user:password@tcp(127.0.0.1:3306)/")
+// - dbName: name of the database to delete
+// Returns nil if the database was successfully deleted or didn't exist, otherwise returns an error.
+func (mysql *MySQLManagerRepo) DropMySQLDatabase(user, password, host, dbName string) error {
+	// 1. Construct DSN (Data Source Name) for connecting to MySQL
+	// Note: Do NOT specify a database here because you cannot drop a database
+	dsn := fmt.Sprintf("%s:%s@tcp(%s)/", user, password, host)
+
+	// 2. Open a connection to MySQL
+	db, err := sql.Open("mysql", dsn)
+	if err != nil {
+		return fmt.Errorf("failed to connect: %v", err)
+	}
+	// Ensure the database connection is closed when function exits
+	defer db.Close()
+
+	// 3. Test the connection
+	if err := db.Ping(); err != nil {
+		return fmt.Errorf("failed to ping MySQL: %v", err)
+	}
+
+	// 4. Prepare the SQL query to drop the database if it exists
+	query := fmt.Sprintf("DROP DATABASE IF EXISTS `%s`", dbName)
+
+	// 5. Execute the query
+	_, err = db.Exec(query)
+	if err != nil {
+		return fmt.Errorf("failed to drop database: %v", err)
+	}
+
+	// 6. Inform the user
+	fmt.Printf("Database %s deleted successfully.\n", dbName)
+	return nil
+}
+
 // Helper: check if a user exists
 func userExists(db *sql.DB, username string) (bool, error) {
 	var count int
@@ -100,188 +133,37 @@ func databaseExists(db *sql.DB, dbName string) (bool, error) {
 	return count > 0, nil
 }
 
-// ListDatabasesWithMeta lists all non-system databases on the MySQL server
-// and provides detailed metadata for each database.
-//
-// Metadata includes:
-//   - Database name
-//   - Table count
-//   - Total data size (MB)
-//   - Total index size (MB)
-//   - Last table update time
-//   - Users with privileges on the database (optional)
-//
+// GetDatabaseStats connects to a MySQL database and retrieves:
+// - Total database size in MB
+// - Total number of tables
 // Params:
-//   - dsn: MySQL connection DSN (e.g., "root:password@tcp(127.0.0.1:3306)/")
-//
-// Returns:
-//   - []models.DatabaseMeta: list of databases with metadata
-//   - error: if connection or query fails
-func (mysql *MySQLManagerRepo) ListDatabasesWithMeta(dsn string) ([]models.DatabaseMeta, error) {
-	db, err := sql.Open("mysql", dsn)
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to MySQL: %v", err)
-	}
-	defer db.Close()
+// - dsn: MySQL DSN like "user:password@tcp(127.0.0.1:3306)/"
+// - dbName: target database name
+// Returns: sizeMB, tableCount, error
+func (mysql *MySQLManagerRepo) GetMySQLDatabaseStats(ctx context.Context,dsn, dbName string) (float64, int, error) {
+    // Connect to MySQL
+    db, err := sql.Open("mysql", dsn)
+    if err != nil {
+        return 0, 0, fmt.Errorf("failed to connect: %w", err)
+    }
+    defer db.Close()
 
-	if err = db.Ping(); err != nil {
-		return nil, fmt.Errorf("failed to ping MySQL: %v", err)
-	}
+    // Query to get size and table count
+    query := `
+        SELECT 
+            ROUND(IFNULL(SUM(data_length + index_length) / 1024 / 1024, 0), 2) AS size_mb,
+            COUNT(*) AS table_count
+        FROM information_schema.tables
+        WHERE table_schema = ?
+    `
 
-	// List all non-system databases
-	dbQuery := `
-		SELECT schema_name
-		FROM information_schema.schemata
-		WHERE schema_name NOT IN ('information_schema','mysql','performance_schema','sys')
-		ORDER BY schema_name;
-	`
-	rows, err := db.Query(dbQuery)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch database list: %v", err)
-	}
-	defer rows.Close()
+    var sizeMB float64
+    var tableCount int
 
-	var databases []models.DatabaseMeta
+    err = db.QueryRowContext(ctx, query, dbName).Scan(&sizeMB, &tableCount)
+    if err != nil {
+        return 0, 0, fmt.Errorf("query error: %w", err)
+    }
 
-	for rows.Next() {
-		var dbName string
-		if err := rows.Scan(&dbName); err != nil {
-			return nil, err
-		}
-
-		meta := models.DatabaseMeta{
-			DBName:     dbName,
-			UpdatedAt:  nil,
-			TableCount: 0,
-		}
-
-		// Table metadata
-		tableQuery := `
-			SELECT 
-				COUNT(*) AS table_count,
-				IFNULL(SUM(DATA_LENGTH + INDEX_LENGTH)/1024/1024, 0) AS total_size_mb,
-				MIN(CREATE_TIME) AS created_at,
-    			MAX(UPDATE_TIME) AS updated_at
-			FROM information_schema.tables
-			WHERE table_schema = ?;
-		`
-
-		var lastUpdate, firstTableCreated sql.NullTime
-		err := db.QueryRow(tableQuery, dbName).Scan(
-			&meta.TableCount,
-			&meta.DatabaseSizeMB,
-			&lastUpdate,
-			&firstTableCreated,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("failed to fetch table metadata for database %s: %v", dbName, err)
-		}
-
-		if lastUpdate.Valid {
-			meta.UpdatedAt = &lastUpdate.Time
-		}
-		if firstTableCreated.Valid {
-			meta.CreatedAt = &firstTableCreated.Time // approximate db creation
-		}
-
-		// Users with privileges
-		userQuery := `
-			SELECT DISTINCT 
-				TRIM(BOTH '\'' FROM SUBSTRING_INDEX(GRANTEE, '@', 1)) AS username
-			FROM information_schema.SCHEMA_PRIVILEGES
-			WHERE TABLE_SCHEMA = ?;
-
-		`
-		userRows, err := db.Query(userQuery, dbName)
-		if err == nil {
-			var users []string
-			for userRows.Next() {
-				var grantee string
-				if err := userRows.Scan(&grantee); err == nil {
-					users = append(users, grantee)
-				}
-			}
-			meta.Users = users
-			userRows.Close()
-		}
-
-		databases = append(databases, meta)
-	}
-
-	if err = rows.Err(); err != nil {
-		return nil, err
-	}
-
-	log.Printf("Found %d databases with metadata\n", len(databases))
-	return databases, nil
-}
-
-// ListTablesWithMeta lists all tables in the given database along with metadata.
-//
-// Params:
-//   - dsn: full MySQL connection string (e.g. "root:password@tcp(127.0.0.1:3306)/")
-//   - dbName: name of the database whose tables you want to list.
-//
-// Returns:
-//   - slice of models.TableMeta
-//   - error if query or connection fails
-func (mysql *MySQLManagerRepo) ListTablesWithMeta(dsn, dbName string) ([]models.TableMeta, error) {
-	// Connect to MySQL
-	db, err := sql.Open("mysql", dsn)
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to MySQL: %v", err)
-	}
-	defer db.Close()
-
-	// Verify connection
-	if err = db.Ping(); err != nil {
-		return nil, fmt.Errorf("failed to ping MySQL: %v", err)
-	}
-
-	// Query to fetch table metadata
-	query := `
-		SELECT 
-			TABLE_NAME,
-			ENGINE,
-			ROW_FORMAT,
-			TABLE_COLLATION,
-			TABLE_ROWS,
-			ROUND(DATA_LENGTH/1024/1024, 2) AS data_length_mb,
-			ROUND(INDEX_LENGTH/1024/1024, 2) AS index_length_mb,
-			CREATE_TIME
-		FROM information_schema.tables
-		WHERE table_schema = ?
-		ORDER BY TABLE_NAME;
-	`
-
-	rows, err := db.Query(query, dbName)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch table metadata: %v", err)
-	}
-	defer rows.Close()
-
-	var tables []models.TableMeta
-	for rows.Next() {
-		var t models.TableMeta
-		if err := rows.Scan(
-			&t.TableName,
-			&t.Engine,
-			&t.RowFormat,
-			&t.TableCollation,
-			&t.TableRows,
-			&t.DataLengthMB,
-			&t.IndexLengthMB,
-			&t.CreateAt,
-		); err != nil {
-			return nil, err
-		}
-		tables = append(tables, t)
-	}
-
-	if err = rows.Err(); err != nil {
-		return nil, err
-	}
-
-	log.Printf("Found %d tables in database '%s'\n", len(tables), dbName)
-	return tables, nil
+    return sizeMB, tableCount, nil
 }

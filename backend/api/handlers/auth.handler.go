@@ -19,8 +19,8 @@ type AuthHandler struct {
 	errorLog  *log.Logger
 }
 
-func NewAuthHandler(db *dbrepo.DBRepository, JWTConfig models.JWTConfig, infoLog, errorLog *log.Logger) *AuthHandler {
-	return &AuthHandler{
+func newAuthHandler(db *dbrepo.DBRepository, JWTConfig models.JWTConfig, infoLog, errorLog *log.Logger) AuthHandler {
+	return AuthHandler{
 		DB:        db,
 		JWTConfig: JWTConfig,
 		infoLog:   infoLog,

@@ -38,38 +38,29 @@ export default function DataTable({
   const [searchQuery, setSearchQuery] = useState("");
 
   // ============ Filtering ============
-  const filteredData = useMemo(() => {
-    if (!searchQuery.trim()) return data;
-    const query = searchQuery.toLowerCase();
+  // Helper to get nested value by path
+const getValueByPath = (obj: any, path: string) => {
+  return path.split(".").reduce((acc, key) => (acc ? acc[key] : undefined), obj);
+};
+const filteredData = useMemo(() => {
+  if (!searchQuery.trim()) return data;
+  const query = searchQuery.toLowerCase();
 
-    return data.filter((row) => {
-      const value = row?.[searchColumn];
+  return data.filter((row) => {
+    const value = getValueByPath(row, searchColumn); // <-- updated
 
-      if (value == null) return false;
+    if (value == null) return false;
 
-      if (typeof value === "string") {
-        return value.toLowerCase().includes(query);
-      }
+    if (typeof value === "string") return value.toLowerCase().includes(query);
+    if (typeof value === "number") return value.toString().includes(query);
 
-      if (typeof value === "number") {
-        return value.toString().includes(query);
-      }
+    if (Array.isArray(value)) return value.some((item) => item?.toString().toLowerCase().includes(query));
 
-      // Handle array values (e.g., users)
-      if (Array.isArray(value)) {
-        return value.some((item) =>
-          item?.toString().toLowerCase().includes(query)
-        );
-      }
+    if (typeof value === "object") return Object.values(value).join(" ").toLowerCase().includes(query);
 
-      // Handle object values — flatten to string
-      if (typeof value === "object") {
-        return Object.values(value).join(" ").toLowerCase().includes(query);
-      }
-
-      return false;
-    });
-  }, [searchQuery, searchColumn, data]);
+    return false;
+  });
+}, [searchQuery, searchColumn, data]);
 
   // ============ Print ============
  const handlePrint = () => {
