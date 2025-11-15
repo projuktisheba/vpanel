@@ -279,7 +279,7 @@ func (h *DatabaseManagerHandler) ListMySQLDatabases(w http.ResponseWriter, r *ht
 func (h *DatabaseManagerHandler) CreateMySQLUser(w http.ResponseWriter, r *http.Request) {
 	// Parse JSON body
 	var payload models.DBUser
-	if err := utils.ReadJSON(w,r, &payload); err != nil {
+	if err := utils.ReadJSON(w, r, &payload); err != nil {
 		h.errorLog.Println("ERROR_01_CreateMySQLUser: failed to parse request:", err)
 		utils.BadRequest(w, fmt.Errorf("invalid request body: %w", err))
 		return
@@ -300,8 +300,12 @@ func (h *DatabaseManagerHandler) CreateMySQLUser(w http.ResponseWriter, r *http.
 	}
 
 	// Call DBRegistry to create the MySQL user
-	err = h.DB.DBRegistry.InsertMySqlUser(r.Context(), &payload)
+	err = h.DB.DBRegistry.InsertMySqlUser(r.Context(), payload)
 	if err != nil {
+		if strings.Contains(err.Error(), "mysql_db_users_username_key") {
+			utils.BadRequest(w, fmt.Errorf("User %s already exist", payload.Username))
+			return
+		}
 		h.errorLog.Println("ERROR_03_CreateMySQLUser: failed to insert into user registry:", err)
 		utils.BadRequest(w, fmt.Errorf("failed to insert MySQL user into user registry: %w", err))
 		return
@@ -322,6 +326,7 @@ func (h *DatabaseManagerHandler) CreateMySQLUser(w http.ResponseWriter, r *http.
 	// Send response
 	utils.WriteJSON(w, http.StatusOK, resp)
 }
+
 // ListMySQLUsers handles HTTP requests to fetch all MySQL users.
 // It retrieves users from the database registry, optionally decrypts their passwords,
 // and returns a structured JSON response.
@@ -348,9 +353,9 @@ func (h *DatabaseManagerHandler) ListMySQLUsers(w http.ResponseWriter, r *http.R
 
 	// Prepare response payload
 	resp := struct {
-		Error   bool                `json:"error"`   // Indicates if there was an error
-		Message string              `json:"message"` // Human-readable message
-		Count   int                 `json:"count"`   // Number of users returned
+		Error   bool             `json:"error"`   // Indicates if there was an error
+		Message string           `json:"message"` // Human-readable message
+		Count   int              `json:"count"`   // Number of users returned
 		Users   []*models.DBUser `json:"users"`   // List of user records
 	}{
 		Error:   false,
@@ -362,4 +367,3 @@ func (h *DatabaseManagerHandler) ListMySQLUsers(w http.ResponseWriter, r *http.R
 	// Send JSON response to client
 	utils.WriteJSON(w, http.StatusOK, resp)
 }
-

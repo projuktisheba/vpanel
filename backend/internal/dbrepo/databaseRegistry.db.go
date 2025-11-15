@@ -339,7 +339,7 @@ func (r *DatabaseRegistryRepo) GetAllMySQLDatabase(ctx context.Context) ([]*mode
 // - ctx: context for request cancellation/timeouts
 // - u: pointer to MySQLUser model containing Username and Password
 // Returns nil if successful, or an error if insertion fails.
-func (r *DatabaseRegistryRepo) InsertMySqlUser(ctx context.Context, u *models.DBUser) error {
+func (r *DatabaseRegistryRepo) InsertMySqlUser(ctx context.Context, u models.DBUser) error {
 	// Encrypt the password before storing
 	// encPassword, err := utils.EncryptAES(u.Password)
 	// if err != nil {

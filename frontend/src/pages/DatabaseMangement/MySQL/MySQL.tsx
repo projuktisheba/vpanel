@@ -7,7 +7,7 @@ import Label from "../../../components/form/Label";
 import { useState, FormEvent, useEffect } from "react";
 
 import Select from "../../../components/form/Select";
-import { MoreDotIcon } from "../../../icons";
+import { EyeCloseIcon, MoreDotIcon } from "../../../icons";
 import { databaseManager } from "../../../services/databaseManager.service";
 import DataTable from "../../../components/tables/BasicTables/DataTable";
 import {
@@ -21,7 +21,7 @@ import AlertModal from "../../../components/ui/modal/AlertModal";
 import moment from "moment";
 import FileInput from "../../../components/form/input/FileInput";
 
-import { Loader } from "lucide-react";
+import { EyeIcon, Loader } from "lucide-react";
 import Tabs from "../../UiElements/Tabs";
 interface Option {
   value: string;
@@ -61,74 +61,19 @@ export default function MySQL() {
   const [openCreateUserModal, setOpenCreateUserModal] = useState(false);
   const [openImportDatabaseModal, setOpenImportDatabaseModal] = useState(false);
   const [newUsername, setNewUsername] = useState("");
+  const [newUsernameError, setNewUsernameError] = useState("");
   const [newPassword, setNewPassword] = useState("");
-  const [createUsernameError, setCreateUsernameError] = useState("");
-  const [passwordError, setPasswordError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [newPasswordError, setNewPasswordError] = useState("");
+  const [isUserCreating, setIsUserCreating] = useState(false);
+  const [newUserCreateSuccess, setNewUserCreateSuccess] = useState("");
+  const [newUserCreateError, setNewUserCreateError] = useState("");
   const [importDatabaseSuccess, setImportDatabaseSuccess] = useState("");
   const [importDatabaseError, setImportDatabaseError] = useState("");
   const [sqlFile, setSqlFile] = useState<File | null>(null);
   const [alertMessage, setAlertMessage] = useState("");
   const [alertTitle, setAlertTitle] = useState("");
   const [alertType, setAlertType] = useState<"success" | "error">("success");
-
-  // Toggle a specific row's dropdown
-  function toggleDropdown(rowId: string) {
-    setOpenDropdownId((prev) => (prev === rowId ? "" : rowId));
-  }
-
-  // Close a specific row's dropdown
-  function closeDropdown() {
-    setOpenDropdownId("");
-  }
-
-  //handleDelete shows a waring to the user and then delete the database
-  function openDeleteDatabaseModal(db: Database) {
-    setDeleteTargetDatabase(db);
-  }
-
-  function closeDeleteDatabaseModal() {
-    setDeleteTargetDatabase(null);
-  }
-
-  const handleConfirmDeleteDatabase = async () => {
-    if (!deleteTargetDatabase) return;
-
-    setLoading(true);
-
-    try {
-      const resp = await databaseManager.deleteMySQLDB(
-        deleteTargetDatabase.dbName
-      );
-
-      if (resp?.error) {
-        setAlertModalTitle("Error Deleting Database");
-        setAlertModalMessage(resp.message || "Failed to delete the database.");
-        setAlertModalType("error");
-        setOpenAlertModal(true);
-        return; // stop here
-      }
-
-      // Success
-      setAlertModalTitle("Database Deleted");
-      setAlertModalMessage(
-        resp.message ||
-          `Database "${deleteTargetDatabase.dbName}" deleted successfully.`
-      );
-      setAlertModalType("success");
-      setOpenAlertModal(true);
-
-      await fetchDatabases(); // refresh list
-    } catch (err: any) {
-      console.error("Failed to delete database:", err);
-      setAlertModalTitle("Error Deleting Database");
-      setAlertModalMessage(err.message || String(err));
-      setAlertModalType("error");
-      setOpenAlertModal(true);
-    } finally {
-      setLoading(false);
-      closeDeleteDatabaseModal();
-    }
-  };
 
   // Fetch available users
   const fetchUsers = async () => {
@@ -217,119 +162,6 @@ export default function MySQL() {
     value: user.username,
     label: user.username,
   }));
-
-  // ===================== Handlers =====================
-  const closeCreateUserModal = () => {
-    setOpenCreateUserModal(false);
-    setNewUsername("");
-    setNewPassword("");
-    setUsernameError("");
-    setPasswordError("");
-    setDbCreateSuccess("");
-    setDbCreateError("");
-  };
-
-  const handleCreateUser = async (e: FormEvent) => {
-    e.preventDefault();
-    let hasError = false;
-
-    // ===== Validation =====
-    if (!newUsername.trim()) {
-      setCreateUsernameError("Please enter a username");
-      hasError = true;
-    } else {
-      setCreateUsernameError("");
-    }
-
-    if (!newPassword.trim()) {
-      setPasswordError("Please enter a password");
-      hasError = true;
-    } else {
-      setPasswordError("");
-    }
-
-    if (hasError) return;
-
-    setLoading(true);
-    try {
-      const res = await databaseManager.createMySQLUser(
-        newUsername,
-        newPassword
-      );
-
-      // Show success modal
-      setAlertTitle("User Created");
-      setAlertMessage(res?.message || "Database user created successfully");
-      setAlertType("success");
-      setOpenAlertModal(true);
-
-      // Reset form & close modal
-      closeCreateUserModal();
-    } catch (err: any) {
-      setAlertTitle("Error Creating User");
-      setAlertMessage(err?.message || "Failed to create database user");
-      setAlertType("error");
-      setOpenAlertModal(true);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const createNewDatabase = (e: FormEvent) => {
-    e.preventDefault();
-
-    let hasError = false;
-
-    // Validate database name
-    if (!databaseName) {
-      setDatabaseNameError("Please enter a unique database name");
-      hasError = true;
-    } else if (!databaseName.trim()) {
-      setDatabaseNameError("Database name cannot be blank");
-      hasError = true;
-    } else {
-      setDatabaseNameError("");
-    }
-
-    // Validate username
-    if (!username) {
-      setUsernameError("Please select a database user");
-      hasError = true;
-    } else {
-      setUsernameError("");
-    }
-
-    if (hasError) return;
-
-    (async () => {
-      setIsDBCreating(true);
-
-      const data = await databaseManager.createMySQLDB(databaseName, username);
-      console.log(data);
-
-      // If error, show error message on the form
-      if (data?.error == true) {
-        setDbCreateError(data?.message);
-        setDbCreateSuccess("");
-      } else {
-        setDbCreateError("");
-        setDbCreateSuccess(data?.message);
-        fetchDatabases(); // Refresh list
-      }
-      setIsDBCreating(false);
-    })();
-  };
-
-  const closeCreateDatabaseModal = () => {
-    setDatabaseName("");
-    setDatabaseNameError("");
-    setUsername("");
-    setUsernameError("");
-    setDbCreateError("");
-    setDbCreateSuccess("");
-    setIsDBCreating(false);
-    setOpenCreateDBModal(false);
-  };
 
   const fetchDatabases = async () => {
     setLoading(true);
@@ -429,6 +261,182 @@ export default function MySQL() {
     { value: "user.username", label: "User" },
     { value: "dbName", label: "Database" },
   ];
+
+  // ===================== Handlers =====================
+
+  // Toggle a specific row's dropdown
+  function toggleDropdown(rowId: string) {
+    setOpenDropdownId((prev) => (prev === rowId ? "" : rowId));
+  }
+
+  // Close a specific row's dropdown
+  function closeDropdown() {
+    setOpenDropdownId("");
+  }
+
+  //handleDelete shows a waring to the user and then delete the database
+  function openDeleteDatabaseModal(db: Database) {
+    setDeleteTargetDatabase(db);
+  }
+
+  function closeDeleteDatabaseModal() {
+    setDeleteTargetDatabase(null);
+  }
+
+  const handleConfirmDeleteDatabase = async () => {
+    if (!deleteTargetDatabase) return;
+
+    setLoading(true);
+
+    try {
+      const resp = await databaseManager.deleteMySQLDB(
+        deleteTargetDatabase.dbName
+      );
+
+      if (resp?.error) {
+        setAlertModalTitle("Error Deleting Database");
+        setAlertModalMessage(resp.message || "Failed to delete the database.");
+        setAlertModalType("error");
+        setOpenAlertModal(true);
+        return; // stop here
+      }
+
+      // Success
+      setAlertModalTitle("Database Deleted");
+      setAlertModalMessage(
+        resp.message ||
+          `Database "${deleteTargetDatabase.dbName}" deleted successfully.`
+      );
+      setAlertModalType("success");
+      setOpenAlertModal(true);
+
+      await fetchDatabases(); // refresh list
+    } catch (err: any) {
+      console.error("Failed to delete database:", err);
+      setAlertModalTitle("Error Deleting Database");
+      setAlertModalMessage(err.message || String(err));
+      setAlertModalType("error");
+      setOpenAlertModal(true);
+    } finally {
+      setLoading(false);
+      closeDeleteDatabaseModal();
+    }
+  };
+
+  //Create Database
+  // handlers for creating new database
+  const createNewDatabase = (e: FormEvent) => {
+    e.preventDefault();
+
+    let hasError = false;
+
+    // Validate database name
+    if (!databaseName) {
+      setDatabaseNameError("Please enter a unique database name");
+      hasError = true;
+    } else if (!databaseName.trim()) {
+      setDatabaseNameError("Database name cannot be blank");
+      hasError = true;
+    } else {
+      setDatabaseNameError("");
+    }
+
+    // Validate username
+    if (!username) {
+      setUsernameError("Please select a database user");
+      hasError = true;
+    } else {
+      setUsernameError("");
+    }
+
+    if (hasError) return;
+
+    (async () => {
+      setIsDBCreating(true);
+
+      const data = await databaseManager.createMySQLDB(databaseName, username);
+      console.log(data);
+
+      // If error, show error message on the form
+      if (data?.error == true) {
+        setDbCreateError(data?.message);
+        setDbCreateSuccess("");
+      } else {
+        setDbCreateError("");
+        setDbCreateSuccess(data?.message);
+        fetchDatabases(); // Refresh list
+      }
+      setIsDBCreating(false);
+    })();
+  };
+
+  const closeCreateDatabaseModal = () => {
+    setDatabaseName("");
+    setDatabaseNameError("");
+    setUsername("");
+    setUsernameError("");
+    setDbCreateError("");
+    setDbCreateSuccess("");
+    setIsDBCreating(false);
+    setOpenCreateDBModal(false);
+  };
+
+  // Create User
+  // handle onclose modal
+  const closeCreateUserModal = () => {
+    setOpenCreateUserModal(false);
+    setNewUsername("");
+    setNewUsernameError("");
+    setNewPassword("");
+    setNewPasswordError("");
+    setShowPassword(false);
+    setNewUserCreateSuccess("");
+    setNewUserCreateError("");
+  };
+
+    const createNewUser = (e: FormEvent) => {
+    e.preventDefault();
+
+    let hasError = false;
+
+    // Validate Username
+    if (!newUsername) {
+      setNewUsernameError("Please enter a unique username");
+      hasError = true;
+    } else if (!newUsername.trim()) {
+      setNewUsernameError("Username cannot be blank");
+      hasError = true;
+    } else {
+      setNewUsernameError("");
+    }
+
+    // Validate password
+    if (!newPassword.trim()) {
+      setNewPasswordError("Username cannot be blank");
+      hasError = true;
+    } else {
+      setNewPasswordError("");
+    }
+
+    if (hasError) return;
+
+    (async () => {
+      setIsUserCreating(true);
+      const data = await databaseManager.createMySQLUser(newUsername, newPassword);
+      console.log(data);
+
+      // If error, show error message on the form
+      if (data?.error == true) {
+        setNewUserCreateError(data?.message);
+        setNewUserCreateSuccess("");
+      } else {
+        setNewUserCreateError("");
+        setNewUserCreateSuccess(data?.message);
+        fetchUsers(); // Refresh list
+      }
+      setIsUserCreating(false);
+    })();
+  };
 
   // Import Database
   // Close modal and reset state
@@ -567,7 +575,7 @@ export default function MySQL() {
               >
                 {/* Database Name */}
                 <div>
-                  <Label>Database Name</Label>
+                  <Label>Database Name <span className="text-red-700 font-medium"> *</span></Label>
                   <Input
                     placeholder="Enter database name"
                     type="text"
@@ -589,7 +597,7 @@ export default function MySQL() {
 
                 {/* Database User */}
                 <div>
-                  <Label>Database User</Label>
+                  <Label>Database User <span className="text-red-700 font-medium"> *</span></Label>
                   <Select
                     options={options}
                     placeholder="Select User"
@@ -627,7 +635,7 @@ export default function MySQL() {
                     Cancel
                   </Button>
 
-                  <Button size="sm" variant="primary">
+                  <Button size="sm" variant="primary" disabled={!databaseName || !username || databaseNameError !== "" || userNameError !== ""} >
                     {isDBCreating ? (
                       <>
                         <Loader className="animate-spin w-4 h-4 mr-2" />
@@ -662,7 +670,7 @@ export default function MySQL() {
               {/* Form */}
               <div className="mt-6 flex flex-col gap-4">
                 <div>
-                  <Label>Upload SQL File</Label>
+                  <Label>Upload SQL File <span className="text-red-700 font-medium"> *</span></Label>
                   <FileInput accept=".sql" onChange={handleFileChange} />
                 </div>
 
@@ -756,7 +764,7 @@ export default function MySQL() {
             </div>
           </Modal>
 
-          {/* Create database user */}
+          {/* Create MySQL User Modal */}
           <Modal
             isOpen={openCreateUserModal}
             onClose={closeCreateUserModal}
@@ -775,30 +783,73 @@ export default function MySQL() {
               </div>
 
               {/* Form */}
-              <form className="mt-6 flex flex-col gap-4">
+              <form
+                onSubmit={createNewUser}
+                className="mt-6 flex flex-col gap-4"
+              >
+                {/* Username */}
                 <div>
-                  <Label>Username</Label>
+                  <Label>Username <span className="text-red-700 font-medium"> *</span></Label>
                   <Input
-                    type="text"
                     placeholder="Enter username"
+                    type="text"
                     value={newUsername}
-                    onChange={(e) => setNewUsername(e.target.value)}
-                    error={createUsernameError !== ""}
-                    hint={createUsernameError}
+                    onChange={(e) => {
+                      const value = e.target.value.trim();
+                      setNewUsername(value);
+
+                      if (users.some((u) => u.username === value)) {
+                        setNewUsernameError("Username already exists");
+                      } else {
+                        setNewUsernameError("");
+                      }
+                    }}
+                    error={newUsernameError !== ""}
+                    hint={newUsernameError}
                   />
                 </div>
 
+                {/* Password */}
                 <div>
-                  <Label>Password</Label>
-                  <Input
-                    type="text"
-                    placeholder="Enter password"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    error={passwordError !== ""}
-                    hint={passwordError}
-                  />
+                  <Label>Password <span className="text-red-700 font-medium"> *</span></Label>
+                  <div className="relative">
+                    <Input
+                      type={showPassword ? "text" : "password"}
+                      placeholder="Enter user password"
+                      value={newPassword}
+                      onChange={(e) => {
+                        const value = e.target.value.trim();
+                        setNewPassword(value);
+                      }}
+                      error={newPasswordError !== ""}
+                      hint={newPasswordError}
+                    />
+                    <button
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute z-30 -translate-y-1/2 cursor-pointer right-4 top-1/2"
+                    >
+                      {showPassword ? (
+                        <EyeIcon className="fill-gray-500 dark:fill-gray-400 size-5" />
+                      ) : (
+                        <EyeCloseIcon className="fill-gray-500 dark:fill-gray-400 size-5" />
+                      )}
+                    </button>
+                  </div>
                 </div>
+
+                {/* Success message for user creation Display (Optional) */}
+                {newUserCreateSuccess && (
+                  <div className="text-green-600 text-sm font-medium">
+                    {newUserCreateSuccess}
+                  </div>
+                )}
+
+                {/* Error message for user creation Display (Optional)*/}
+                {newUserCreateError && (
+                  <div className="text-red-600 text-sm font-medium">
+                    {newUserCreateError}
+                  </div>
+                )}
 
                 {/* Footer Buttons */}
                 <div className="mt-6 flex items-center gap-3 lg:justify-end">
@@ -809,18 +860,30 @@ export default function MySQL() {
                   >
                     Cancel
                   </Button>
+
                   <Button
                     size="sm"
                     variant="primary"
-                    onClick={() => handleCreateUser}
+                    disabled={
+                      newUsername == "" ||
+                      newPassword == "" ||
+                      newUsernameError != "" ||
+                      newPasswordError != ""
+                    }
                   >
-                    Create User
+                    {isUserCreating ? (
+                      <>
+                        <Loader className="animate-spin w-4 h-4 mr-2" />
+                        Processing...
+                      </>
+                    ) : (
+                      "Create User"
+                    )}
                   </Button>
                 </div>
               </form>
             </div>
           </Modal>
-
           {/* Alerts */}
           <AlertModal
             isOpen={openAlertModal}

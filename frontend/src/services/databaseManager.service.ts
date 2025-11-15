@@ -35,10 +35,10 @@ export const databaseManager = {
         // data should be your JSON object
         console.error("Error response from backend:", data);
         return {
-          id:0,
-          error:data.error,
-          message:data.message,
-        }
+          id: 0,
+          error: data.error,
+          message: data.message,
+        };
       } else {
         console.error("Network or Axios error:", err.message);
         throw new Error(err.message || "Unknown error");
@@ -110,9 +110,9 @@ export const databaseManager = {
   createMySQLUser: async (
     username: string,
     password: string
-  ): Promise<DatabaseResponse> => {
+  ): Promise<Response> => {
     try {
-      const response = await HttpClient.post<DatabaseResponse>(
+      const response = await HttpClient.post<Response>(
         "/db/mysql/create-user",
         {
           username,
@@ -120,16 +120,31 @@ export const databaseManager = {
         }
       );
 
-      console.log("Create MySQL user response:", response.data);
-      return response.data;
-    } catch (error: any) {
-      console.error(
-        "Error creating MySQL user:",
-        error.response?.data || error.message
-      );
-      throw new Error(
-        error.response?.data?.message || "Failed to create MySQL user"
-      );
+      // Backend response is always JSON, even for errors
+      const data = response.data;
+
+      // Optionally throw if error is true, or just return the object
+      if (data?.error) {
+        console.warn("Backend returned an error:", data.message);
+        // You can either throw here or just return
+        // throw new Error(data.message);
+      }
+
+      return data;
+    } catch (err: any) {
+      // Axios error: check if response exists
+      if (err.response?.data) {
+        const data = err.response.data;
+        // data should be your JSON object
+        console.error("Error response from backend:", data);
+        return {
+          error: data.error,
+          message: data.message,
+        };
+      } else {
+        console.error("Network or Axios error:", err.message);
+        throw new Error(err.message || "Unknown error");
+      }
     }
   },
 
