@@ -24,8 +24,8 @@ const Button: React.FC<ButtonProps> = ({
   // Size Classes with different border-radius
   const sizeClasses = {
     xs: "px-2 py-1 text-xs rounded-sm",
-    sm: "px-4 py-2 text-sm rounded-md",
-    md: "px-5 py-3 text-sm rounded-lg",
+    sm: "px-4 py-2.5 text-sm rounded-md",
+    md: "px-5 py-3.5 text-sm rounded-lg",
   };
 
   // Variant Classes with dark mode support

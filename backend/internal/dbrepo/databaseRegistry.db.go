@@ -330,9 +330,100 @@ func (r *DatabaseRegistryRepo) GetAllMySQLDatabase(ctx context.Context) ([]*mode
 	if err = rows.Err(); err != nil {
 		return nil, err
 	}
-	for _, v := range databases {
-		fmt.Println(v.DBName)
 
-	}
 	return databases, nil
+}
+
+// InsertMySqlUser inserts a new user into mysql_db_users table.
+// Params:
+// - ctx: context for request cancellation/timeouts
+// - u: pointer to MySQLUser model containing Username and Password
+// Returns nil if successful, or an error if insertion fails.
+func (r *DatabaseRegistryRepo) InsertMySqlUser(ctx context.Context, u *models.DBUser) error {
+	// Encrypt the password before storing
+	// encPassword, err := utils.EncryptAES(u.Password)
+	// if err != nil {
+	// 	return fmt.Errorf("failed to encrypt password: %w", err)
+	// }
+
+	query := `
+		INSERT INTO mysql_db_users (username, password, created_at, updated_at)
+		VALUES ($1, $2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+		RETURNING id, created_at, updated_at
+	`
+	row := r.db.QueryRow(ctx, query, u.Username, u.Password)
+	return row.Scan(&u.ID, &u.CreatedAt, &u.UpdatedAt)
+}
+
+// UpdateMySqlUser updates username and/or password for an existing MySQL user.
+// Params:
+// - ctx: context for request cancellation/timeouts
+// - u: pointer to MySQLUser model containing ID, Username, and Password
+// Returns nil if successful, or an error if update fails.
+func (r *DatabaseRegistryRepo) UpdateMySqlUser(ctx context.Context, u *models.DBUser) error {
+	// Encrypt password before storing
+	// encPassword, err := utils.EncryptAES(u.Password)
+	// if err != nil {
+	// 	return fmt.Errorf("failed to encrypt password: %w", err)
+	// }
+
+	query := `
+		UPDATE mysql_db_users
+		SET password = $1,
+		    updated_at = CURRENT_TIMESTAMP
+		WHERE username = $2 AND deleted_at IS NULL
+		RETURNING updated_at
+	`
+	row := r.db.QueryRow(ctx, query, u.Password, u.Username)
+	return row.Scan(&u.UpdatedAt)
+}
+
+// DeleteMySqlUser marks a MySQL user as deleted (soft delete).
+// Params:
+// - ctx: context for request cancellation/timeouts
+// - userID: ID of the user to delete
+// Returns nil if successful, or an error if deletion fails.
+func (r *DatabaseRegistryRepo) DeleteMySqlUser(ctx context.Context, username int) error {
+	query := `
+		UPDATE mysql_db_users
+		SET deleted_at = CURRENT_TIMESTAMP,
+		    updated_at = CURRENT_TIMESTAMP
+		WHERE username = $1 AND deleted_at IS NULL
+	`
+	_, err := r.db.Exec(ctx, query, username)
+	return err
+}
+
+// ListMySqlUsers fetches all MySQL users that are not soft-deleted.
+// Params:
+// - ctx: context for request cancellation/timeouts
+// Returns a slice of MySQLUser and an error if any.
+func (r *DatabaseRegistryRepo) ListMySqlUsers(ctx context.Context) ([]*models.DBUser, error) {
+	query := `
+		SELECT id, username, password, created_at, updated_at, deleted_at
+		FROM mysql_db_users
+		WHERE deleted_at IS NULL
+		ORDER BY created_at DESC
+	`
+
+	rows, err := r.db.Query(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query MySQL users: %w", err)
+	}
+	defer rows.Close()
+
+	var users []*models.DBUser
+	for rows.Next() {
+		u := &models.DBUser{}
+		if err := rows.Scan(&u.ID, &u.Username, &u.Password, &u.CreatedAt, &u.UpdatedAt, &u.DeletedAt); err != nil {
+			return nil, fmt.Errorf("failed to scan MySQL user: %w", err)
+		}
+		users = append(users, u)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows iteration error: %w", err)
+	}
+
+	return users, nil
 }

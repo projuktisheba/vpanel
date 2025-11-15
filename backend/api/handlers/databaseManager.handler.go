@@ -2,8 +2,11 @@ package handlers
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/projuktisheba/vpanel/backend/internal/dbrepo"
@@ -63,7 +66,7 @@ func (h *DatabaseManagerHandler) CreateMySQLDatabase(w http.ResponseWriter, r *h
 	if err != nil {
 		// Create the database, assign user if provided
 		if err := h.DB.MySQL.CreateMySQLDatabase(h.mysqlRootDSN, req.DatabaseName, registryUser.Username, registryUser.Password); err != nil {
-			utils.ServerError(w, fmt.Errorf("failed to create database: %w", err))
+			utils.ServerError(w, err)
 			return
 		}
 	}
@@ -72,6 +75,10 @@ func (h *DatabaseManagerHandler) CreateMySQLDatabase(w http.ResponseWriter, r *h
 	registryDB.DBName = req.DatabaseName
 	registryDB.UserID = registryUser.ID
 	if err := h.DB.DBRegistry.InsertMySqlDatabaseRegistry(r.Context(), &registryDB); err != nil {
+		if strings.Contains(err.Error(), "mysql_databases_db_name_key") {
+			utils.BadRequest(w, fmt.Errorf("Database %s already exist", registryDB.DBName))
+			return
+		}
 		utils.ServerError(w, fmt.Errorf("failed to insert database into registry: %w", err))
 		return
 	}
@@ -83,6 +90,98 @@ func (h *DatabaseManagerHandler) CreateMySQLDatabase(w http.ResponseWriter, r *h
 	if registryUser.Username != "" {
 		resp.Message += fmt.Sprintf(" with user '%s'", registryUser.Username)
 	}
+
+	utils.WriteJSON(w, http.StatusOK, resp)
+}
+
+// ImportMySQLDatabase handles uploading, saving, and optionally executing a .SQL file
+// for an existing MySQL database.
+//
+// This function expects a multipart/form-data POST request with the following fields:
+//   - "dbName": the name of the target database (required, must exist in registry)
+//   - "sqlFile": the uploaded .sql file to import
+//
+// Steps:
+//  1. Parse the multipart form and validate input.
+//  2. Verify that the database exists in the registry.
+//  3. Validate that the uploaded file has a ".sql" extension.
+//  4. Save the uploaded file to "$USER/projuktisheba/template/database/<dbName>_mysql.sql".
+//  5. Execute the SQL statements in the file against the database.
+//  6. Return a JSON response indicating success or failure.
+func (h *DatabaseManagerHandler) ImportMySQLDatabase(w http.ResponseWriter, r *http.Request) {
+	// Parse multipart form (limit to 50MB)
+	if err := r.ParseMultipartForm(50 << 20); err != nil {
+		h.errorLog.Println("ERROR_01_ImportDB: failed to parse form:", err)
+		utils.BadRequest(w, fmt.Errorf("invalid form data: %w", err))
+		return
+	}
+
+	// Read dbName
+	dbName := r.FormValue("dbName")
+	if dbName == "" {
+		utils.BadRequest(w, fmt.Errorf("database name is required"))
+		return
+	}
+
+	h.infoLog.Println("Importing SQL for database:", dbName)
+
+	// Check if database exists in registry
+	registryDB, err := h.DB.DBRegistry.GetMySQLDatabaseByName(r.Context(), dbName)
+	if err != nil || registryDB.ID == 0 {
+		utils.BadRequest(w, fmt.Errorf("database %s not found in registry", dbName))
+		return
+	}
+
+	// Read uploaded SQL file
+	file, header, err := r.FormFile("sqlFile")
+	if err != nil {
+		utils.BadRequest(w, fmt.Errorf("SQL file is required: %w", err))
+		return
+	}
+	defer file.Close()
+
+	// Validate file extension
+	if !strings.HasSuffix(strings.ToLower(header.Filename), ".sql") {
+		utils.BadRequest(w, fmt.Errorf("invalid file type: only .sql files are allowed"))
+		return
+	}
+
+	// Create path to save SQL file
+	homeDir, _ := os.UserHomeDir()
+	dirPath := filepath.Join(homeDir, "projuktisheba", "template", "database")
+	if err := os.MkdirAll(dirPath, os.ModePerm); err != nil {
+		h.errorLog.Println("ERROR_02_ImportDB: failed to create directory:", err)
+		utils.ServerError(w, fmt.Errorf("failed to create directory: %w", err))
+		return
+	}
+
+	savePath := filepath.Join(dirPath, fmt.Sprintf("%s_mysql.sql", registryDB.DBName))
+	outFile, err := os.Create(savePath)
+	if err != nil {
+		h.errorLog.Println("ERROR_03_ImportDB: failed to create file:", err)
+		utils.ServerError(w, fmt.Errorf("failed to save file: %w", err))
+		return
+	}
+	defer outFile.Close()
+
+	// Copy uploaded file content
+	if _, err := io.Copy(outFile, file); err != nil {
+		h.errorLog.Println("ERROR_04_ImportDB: failed to write file:", err)
+		utils.ServerError(w, fmt.Errorf("failed to write file: %w", err))
+		return
+	}
+
+	// ==================== Execute SQL statements ====================
+	err = h.DB.MySQL.ExecuteSQLFile(h.mysqlRootDSN, dbName, savePath)
+	if err != nil {
+		h.errorLog.Println("ERROR_05_ImportDB: Failed to execute SQL file:", err)
+		utils.ServerError(w, fmt.Errorf("Failed to execute SQL file: %w", err))
+	}
+
+	// ==================== Build response ====================
+	var resp models.Response
+	resp.Error = false
+	resp.Message = "Database updated successfully"
 
 	utils.WriteJSON(w, http.StatusOK, resp)
 }
@@ -177,30 +276,90 @@ func (h *DatabaseManagerHandler) ListMySQLDatabases(w http.ResponseWriter, r *ht
 	// Send response
 	utils.WriteJSON(w, http.StatusOK, resp)
 }
+func (h *DatabaseManagerHandler) CreateMySQLUser(w http.ResponseWriter, r *http.Request) {
+	// Parse JSON body
+	var payload models.DBUser
+	if err := utils.ReadJSON(w,r, &payload); err != nil {
+		h.errorLog.Println("ERROR_01_CreateMySQLUser: failed to parse request:", err)
+		utils.BadRequest(w, fmt.Errorf("invalid request body: %w", err))
+		return
+	}
 
+	// Validate input
+	if payload.Username == "" || payload.Password == "" {
+		utils.BadRequest(w, fmt.Errorf("dbName, user, and password are required"))
+		return
+	}
+
+	// Create the MySQL user
+	err := h.DB.MySQL.CreateMySQLUser(r.Context(), h.mysqlRootDSN, payload.Username, payload.Password, []string{})
+	if err != nil {
+		h.errorLog.Println("ERROR_02_CreateMySQLUser: failed to create mysql user: ", err)
+		utils.BadRequest(w, fmt.Errorf("failed to create MySQL user: %w", err))
+		return
+	}
+
+	// Call DBRegistry to create the MySQL user
+	err = h.DB.DBRegistry.InsertMySqlUser(r.Context(), &payload)
+	if err != nil {
+		h.errorLog.Println("ERROR_03_CreateMySQLUser: failed to insert into user registry:", err)
+		utils.BadRequest(w, fmt.Errorf("failed to insert MySQL user into user registry: %w", err))
+		return
+	}
+
+	// Prepare successful response
+	resp := struct {
+		Error   bool   `json:"error"`
+		Message string `json:"message"`
+		User    string `json:"user"`
+		DBName  string `json:"dbName"`
+	}{
+		Error:   false,
+		Message: "MySQL user created successfully",
+		User:    payload.Username,
+	}
+
+	// Send response
+	utils.WriteJSON(w, http.StatusOK, resp)
+}
+// ListMySQLUsers handles HTTP requests to fetch all MySQL users.
+// It retrieves users from the database registry, optionally decrypts their passwords,
+// and returns a structured JSON response.
+// Only users that are not soft-deleted are returned.
 func (h *DatabaseManagerHandler) ListMySQLUsers(w http.ResponseWriter, r *http.Request) {
-
-	// Fetch users
-	users, err := h.DB.DBRegistry.GetAllMySqlUsers(r.Context())
+	// Fetch all users from the DBRegistry repository
+	users, err := h.DB.DBRegistry.ListMySqlUsers(r.Context())
 	if err != nil {
 		h.errorLog.Println("ERROR_01_ListMySQLUsers: failed to fetch users:", err)
 		utils.BadRequest(w, fmt.Errorf("failed to list users: %w", err))
 		return
 	}
 
-	// Prepare successful response
+	// Loop through users to decrypt passwords (for admin display)
+	// for _, u := range users {
+	// 	pass, err := utils.DecryptAES(u.Password)
+	// 	if err != nil {
+	// 		h.errorLog.Println("ERROR_02_ListMySQLUsers: failed to decrypt password:", err)
+	// 		u.Password = "" // Hide password if decryption fails
+	// 	} else {
+	// 		u.Password = pass
+	// 	}
+	// }
+
+	// Prepare response payload
 	resp := struct {
-		Error   bool             `json:"error"`   // Indicates if an error occurred
-		Message string           `json:"message"` // Response message
-		Count   int              `json:"count"`   // Number of databases
-		DBUsers []*models.DBUser `json:"dbUsers"` // List of database names
+		Error   bool                `json:"error"`   // Indicates if there was an error
+		Message string              `json:"message"` // Human-readable message
+		Count   int                 `json:"count"`   // Number of users returned
+		Users   []*models.DBUser `json:"users"`   // List of user records
 	}{
 		Error:   false,
 		Message: "Users fetched successfully",
 		Count:   len(users),
-		DBUsers: users,
+		Users:   users,
 	}
 
-	// Send response
+	// Send JSON response to client
 	utils.WriteJSON(w, http.StatusOK, resp)
 }
+
