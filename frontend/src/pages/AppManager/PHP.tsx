@@ -7,9 +7,9 @@ import PageBreadcrumb from "../../components/common/PageBreadCrumb";
 import PageMeta from "../../components/common/PageMeta";
 import Label from "../../components/form/Label";
 import Input from "../../components/form/input/InputField";
-import { ArrowBigRight, ArrowRight, Loader } from "lucide-react";
 import Button from "../../components/ui/button/Button";
 import FileInput from "../../components/form/input/FileInput";
+import { ArrowRight, Loader } from "lucide-react";
 
 export default function ProjectUploader() {
   const [file, setFile] = useState<File | null>(null);
