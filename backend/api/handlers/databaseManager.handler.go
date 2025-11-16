@@ -148,7 +148,7 @@ func (h *DatabaseManagerHandler) ImportMySQLDatabase(w http.ResponseWriter, r *h
 
 	// Create path to save SQL file
 	homeDir, _ := os.UserHomeDir()
-	dirPath := filepath.Join(homeDir, "projuktisheba", "template", "database")
+	dirPath := filepath.Join(homeDir, "projuktisheba", "templates", "databases")
 	if err := os.MkdirAll(dirPath, os.ModePerm); err != nil {
 		h.errorLog.Println("ERROR_02_ImportDB: failed to create directory:", err)
 		utils.ServerError(w, fmt.Errorf("failed to create directory: %w", err))

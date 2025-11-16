@@ -49,7 +49,7 @@ func newProjectHandler(db *dbrepo.DBRepository, infoLog, errorLog *log.Logger) P
 //  6. Return a JSON response indicating success or failure.
 func (h *ProjectHandler) UploadProjectFolder(w http.ResponseWriter, r *http.Request) {
 	// Parse multipart form (limit to 50MB per chunk)
-	if err := r.ParseMultipartForm(50 << 20); err != nil {
+	if err := r.ParseMultipartForm(10 << 20); err != nil {
 		h.errorLog.Println("ERROR_01_UploadProjectFolder: failed to parse form:", err)
 		utils.BadRequest(w, fmt.Errorf("invalid form data: %w", err))
 		return
@@ -132,19 +132,10 @@ func (h *ProjectHandler) UploadProjectFolder(w http.ResponseWriter, r *http.Requ
 			return
 		}
 
-		// Extract ZIP **once**
-		if err := extractZip(finalZipPath, projectDir); err != nil {
-			h.errorLog.Println("ERROR_07_UploadProjectFolder: failed to extract ZIP:", err)
-			utils.ServerError(w, fmt.Errorf("failed to extract ZIP: %w", err))
-			return
-		}
-
 		// Clean up temporary files and ZIP
 		os.RemoveAll(tmpDir)
 		os.Remove(finalZipPath)
 	}
-
-	// Run project in production mode
 
 	// ==================== Build response ====================
 	var resp models.Response
