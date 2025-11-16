@@ -17,13 +17,13 @@ import (
 
 var handlerRepo *handlers.HandlerRepo
 
-
 func Routes(env string, db *dbrepo.DBRepository, jwt models.JWTConfig, infoLogger, errorLogger *log.Logger, mysqlRootDSN string) http.Handler {
 	mux := chi.NewRouter()
 
 	// --- Global middlewares ---
 	mux.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"https://vpanel.pssoft.xyz"},
+		// AllowedOrigins:   []string{"https://vpanel.pssoft.xyz"},
+		AllowedOrigins:   []string{"*"},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token", "X-Branch-ID"},
 		AllowCredentials: false,
@@ -52,14 +52,14 @@ func Routes(env string, db *dbrepo.DBRepository, jwt models.JWTConfig, infoLogge
 
 	//get the handler repo
 	handlerRepo = handlers.NewHandlerRepo(db, jwt, infoLogger, errorLogger, mysqlRootDSN)
-	
+
 	// Mount Auth routes
 	mux.Mount("/api/v1/auth", authRoutes())
-	
+
 	// =========== Secure Routes ===========
 	// Mount database registry routes
 	mux.Mount("/api/v1/db", databaseRegistryRoutes())
-	
+
 	// Mount project handlers routes
 	mux.Mount("/api/v1/project", projectHandlerRoutes())
 

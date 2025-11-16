@@ -584,7 +584,7 @@ export default function MySQL() {
                 {/* Database Name */}
                 <div>
                   <Label>
-                    Database Name{" "}
+                    Database Name{" * "}
                     <span className="text-red-700 font-medium"> *</span>
                   </Label>
                   <Input

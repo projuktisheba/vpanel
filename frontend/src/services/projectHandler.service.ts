@@ -7,7 +7,8 @@ export const projectService = {
   file: Blob,
   onProgress?: (progress: UploadProgress) => void
 ): Promise<void> => {
-  const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB per chunk
+  const CHUNK_SIZE_IN_MB = 5 ; // 5MB per chunk
+  const CHUNK_SIZE = CHUNK_SIZE_IN_MB * 1024 * 1024; // 5MB per chunk
   const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
 
   for (let i = 0; i < totalChunks; i++) {
@@ -29,6 +30,7 @@ export const projectService = {
 
       if (onProgress) {
         onProgress({
+          chunkSizeMB: CHUNK_SIZE_IN_MB,
           uploadedChunks: i + 1,
           totalChunks,
           percentage: Math.round(((i + 1) / totalChunks) * 100),

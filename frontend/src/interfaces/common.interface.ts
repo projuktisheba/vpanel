@@ -4,6 +4,9 @@ export interface Response {
 }
 
 export interface UploadProgress {
+  /** Chunk size in MB*/
+  chunkSizeMB: number;
+  
   /** Number of chunks uploaded so far */
   uploadedChunks: number;
 
