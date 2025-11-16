@@ -10,5 +10,5 @@ export function formatUTCToLocal(
   formatStr = "YYYY-MM-DD HH:mm:ss"
 ): string {
   if (!date) return "-";
-  return moment.utc(date).local().format("YYYY-MM-DD") || "-";
+  return moment.utc(date).local().format(formatStr) || "-";
 }
