@@ -73,9 +73,6 @@ export default function MySQL() {
   const [importDatabaseSuccess, setImportDatabaseSuccess] = useState("");
   const [importDatabaseError, setImportDatabaseError] = useState("");
   const [sqlFile, setSqlFile] = useState<File | null>(null);
-  const [alertMessage, setAlertMessage] = useState("");
-  const [alertTitle, setAlertTitle] = useState("");
-  const [alertType, setAlertType] = useState<"success" | "error">("success");
 
   // Fetch available users
   const fetchUsers = async () => {

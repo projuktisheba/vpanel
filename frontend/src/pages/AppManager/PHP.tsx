@@ -1,16 +1,13 @@
 import PageBreadcrumb from "../../components/common/PageBreadCrumb";
-import { EyeIcon } from "lucide-react";
 import ComponentCard from "../../components/common/ComponentCard";
 import Input from "../../components/form/input/InputField";
 import Label from "../../components/form/Label";
 import Select from "../../components/form/Select";
-import { EyeCloseIcon, CalenderIcon, TimeIcon } from "../../icons";
-import { useState } from "react";
-import Flatpickr from "react-flatpickr";
 import PageMeta from "../../components/common/PageMeta";
+import { TimeIcon } from "../../icons";
 
 export default function PHP() {
-    const [showPassword, setShowPassword] = useState(false);
+    // const [showPassword, setShowPassword] = useState(false);
       const options = [
         { value: "marketing", label: "Marketing" },
         { value: "template", label: "Template" },
@@ -19,11 +16,11 @@ export default function PHP() {
       const handleSelectChange = (value: string) => {
         console.log("Selected value:", value);
       };
-      const [dateOfBirth, setDateOfBirth] = useState("");
+      // const [dateOfBirth, setDateOfBirth] = useState("");
     
-      const handleDateChange = (date: Date[]) => {
-        setDateOfBirth(date[0].toLocaleDateString()); // Handle selected date and format it
-      };
+      // const handleDateChange = (date: Date[]) => {
+      //   setDateOfBirth(date[0].toLocaleDateString()); // Handle selected date and format it
+      // };
   return (
     <div>
       <PageMeta title="PHP Site Manager" description="Manage You PHP Sites" />
