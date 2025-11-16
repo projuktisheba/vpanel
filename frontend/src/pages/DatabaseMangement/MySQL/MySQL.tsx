@@ -59,6 +59,7 @@ export default function MySQL() {
   const [openDropdownId, setOpenDropdownId] = useState<string | "">("");
   const [deleteTargetDatabase, setDeleteTargetDatabase] =
     useState<Database | null>(null);
+     const [isDBDeleting, setIsDBDeleting] = useState(false);
   const [openCreateDBModal, setOpenCreateDBModal] = useState(false);
   const [openCreateUserModal, setOpenCreateUserModal] = useState(false);
   const [openImportDatabaseModal, setOpenImportDatabaseModal] = useState(false);
@@ -70,14 +71,17 @@ export default function MySQL() {
   const [isUserCreating, setIsUserCreating] = useState(false);
   const [newUserCreateSuccess, setNewUserCreateSuccess] = useState("");
   const [newUserCreateError, setNewUserCreateError] = useState("");
+  //import database via .sql
+  const [sqlFile, setSqlFile] = useState<File | null>(null);
+   const [isDBImporting, setIsDBImporting] = useState(false);
   const [importDatabaseSuccess, setImportDatabaseSuccess] = useState("");
   const [importDatabaseError, setImportDatabaseError] = useState("");
-  const [sqlFile, setSqlFile] = useState<File | null>(null);
+  
 
   // Fetch available users
   const fetchUsers = async () => {
     
-    if (!openCreateDBModal && openCreateUserModal ) setLoading(true);
+    if (!openCreateDBModal && !openCreateUserModal ) setLoading(true);
     try {
       const res = await databaseManager.listMySQLUsers();
       // res here is the whole API response, so extract the databases array
@@ -258,8 +262,8 @@ export default function MySQL() {
 
   // Table search options
   const dbSearchOptions = [
-    { value: "user.username", label: "User" },
     { value: "dbName", label: "Database" },
+    { value: "user.username", label: "User" },    
   ];
 
   // ===================== Handlers =====================
@@ -286,7 +290,7 @@ export default function MySQL() {
   const handleConfirmDeleteDatabase = async () => {
     if (!deleteTargetDatabase) return;
 
-    setLoading(true);
+    setIsDBDeleting(true);
 
     try {
       const resp = await databaseManager.deleteMySQLDB(
@@ -319,7 +323,7 @@ export default function MySQL() {
       setAlertModalType("error");
       setOpenAlertModal(true);
     } finally {
-      setLoading(false);
+      setIsDBDeleting(false);
       closeDeleteDatabaseModal();
     }
   };
@@ -483,6 +487,7 @@ export default function MySQL() {
     }
 
     try {
+      setIsDBImporting(true)
       const formData = new FormData();
       formData.append("dbName", importDatabase.dbName); // database name
       formData.append("sqlFile", sqlFile); // upload file
@@ -494,12 +499,15 @@ export default function MySQL() {
         setImportDatabaseSuccess(
           response.message || "Database imported successfully!"
         );
+        fetchDatabases()
       } else {
         setImportDatabaseError(response.message || "Import failed.");
       }
     } catch (err: any) {
       console.error("Import failed:", err);
       setImportDatabaseError(err?.message || "An unexpected error occurred.");
+    } finally{
+      setIsDBImporting(false)
     }
   };
 
@@ -722,12 +730,19 @@ export default function MySQL() {
                   </Button>
 
                   <Button
-                    disabled={!sqlFile} // disable if no file selected
+                    disabled={!sqlFile || isDBImporting} // disable if no file selected
                     size="sm"
                     variant="primary"
                     onClick={() => handleImportDatabase()} // wrap in arrow to fix TS type
                   >
-                    Import
+                    {isDBImporting ? (
+                      <>
+                        <Loader className="animate-spin w-4 h-4 mr-2" />
+                        Importing...
+                      </>
+                    ) : (
+                      "Import Database"
+                    )}
                   </Button>
                 </div>
               </div>
@@ -781,10 +796,19 @@ export default function MySQL() {
                 <Button
                   size="sm"
                   variant="primary"
+                  disabled={!deleteTargetDatabase || isDBDeleting}
                   className="bg-red-600 hover:bg-red-700 text-white"
                   onClick={handleConfirmDeleteDatabase}
                 >
-                  Delete Database
+                  {isDBDeleting ? (
+                      <>
+                        <Loader className="animate-spin w-4 h-4 mr-2" />
+                        Deleting...
+                      </>
+                    ) : (
+                      "Delete Database"
+                    )}
+                  
                 </Button>
               </div>
             </div>

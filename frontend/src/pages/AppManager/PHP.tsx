@@ -68,95 +68,103 @@ export default function ProjectUploader() {
       />
       <PageBreadcrumb pageTitle="Build PHP Website" />
       <ComponentCard>
-        <div>
-          <Label>
-            Domain Name <span className="text-red-700 font-medium"> *</span>
-          </Label>
-          <Input
-            placeholder="Enter domain name(e.g. example.abc)"
-            type="text"
-            value={projectName}
-            onChange={(e) => setProjectName(e.target.value)}
-            // className="mb-2 p-1 border rounded w-full"
-          />
-          {projectNameError && (
-            <div className="text-red-600 text-sm font-medium">
-              {projectNameError}
-            </div>
-          )}
-        </div>
-        <div>
-          <Label>
-            Project File <span className="text-red-700 font-medium"> *</span>
-          </Label>
-          <FileInput accept=".zip" onChange={handleFileSelect} />
-          {fileError && (
-            <div className="text-red-600 text-sm font-medium">{fileError}</div>
-          )}
-        </div>
-        <div>
-          <Button
-            disabled={uploading || !file || !projectName} // disable if no file selected
-            size="sm"
-            variant="primary"
-            onClick={() => handleUpload()} // wrap in arrow to fix TS type
-            endIcon={<ArrowRight></ArrowRight>}
-          >
-            {uploading ? (
-              <>
-                <Loader className="animate-spin w-4 h-4 mr-2" />
-                Uploading...
-              </>
-            ) : (
-              "Upload"
+        <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-2 gap-6">
+          {/* Column 1: Domain Name */}
+          <div className="w-full">
+            <Label>
+              Domain Name <span className="text-red-700 font-medium"> *</span>
+            </Label>
+            <Input
+              placeholder="Enter domain name(e.g. example.abc)"
+              type="text"
+              value={projectName}
+              onChange={(e) => setProjectName(e.target.value)}
+              className="w-full"
+            />
+            {projectNameError && (
+              <div className="text-red-600 text-sm font-medium">
+                {projectNameError}
+              </div>
             )}
-          </Button>
+          </div>
 
-          {/* Uploading progress bar */}
-          {uploading && progress && (
-            <div className="m-4">
-              {/* Uploading File Info */}
-              <div className="mb-2 flex justify-between items-center">
-                {/* Left: Icon + File Info */}
-                <div className="flex items-center gap-x-3">
-                  <span className="w-6 h-6 flex justify-center items-center bg-gray-100 border border-blue-200 text-gray-800 rounded">
-                    <FileIcon />
-                  </span>
-                  <div>
-                    <p className="text-xs dark:text-gray-50">
-                      {progress.uploadedChunks * progress.chunkSizeMB} MB of{" "}
-                      {progress.totalChunks * progress.chunkSizeMB} MB
-                    </p>
+          {/* Column 2: Project File */}
+          <div className="w-full">
+            <Label>
+              Project File <span className="text-red-700 font-medium"> *</span>
+            </Label>
+            <FileInput
+              accept=".zip"
+              onChange={handleFileSelect}
+              className="w-full"
+            />
+            {fileError && (
+              <div className="text-red-600 text-sm font-medium">
+                {fileError}
+              </div>
+            )}
+          </div>
+
+          {/* Upload button + progress bar spans both columns */}
+          <div className="col-span-1 sm:col-span-1 md:col-span-2 lg:col-span-2 xl:col-span-2 flex flex-col gap-4 mt-2">
+            <Button
+              disabled={uploading || !file || !projectName}
+              size="sm"
+              variant="primary"
+              onClick={() => handleUpload()}
+              endIcon={<ArrowRight />}
+            >
+              {uploading ? (
+                <>
+                  <Loader className="animate-spin w-4 h-4 mr-2" />
+                  Uploading...
+                </>
+              ) : (
+                "Upload"
+              )}
+            </Button>
+
+            {/* Uploading progress bar */}
+            {uploading && progress && (
+              <div className="m-0">
+                <div className="mb-2 flex justify-between items-center">
+                  <div className="flex items-center gap-x-3">
+                    <span className="w-6 h-6 flex justify-center items-center bg-gray-100 border border-blue-200 text-gray-800 rounded">
+                      <FileIcon />
+                    </span>
+                    <div>
+                      <p className="text-xs dark:text-gray-50">
+                        {progress.uploadedChunks * progress.chunkSizeMB} MB of{" "}
+                        {progress.totalChunks * progress.chunkSizeMB} MB
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-sm font-medium text-gray-800 dark:text-gray-50">
+                    {progress.percentage.toFixed(1)}%
                   </div>
                 </div>
 
-                {/* Right: Percentage */}
-                <div className="text-sm font-medium text-gray-800 dark:text-gray-50">
-                  {progress.percentage.toFixed(1)}%
+                <div className="w-full bg-gray-200 dark:bg-gray-700 h-4 rounded-full overflow-hidden shadow-inner">
+                  <div
+                    className="bg-blue-500 h-4 rounded-full transition-all duration-500 ease-out"
+                    style={{ width: `${progress.percentage}%` }}
+                  ></div>
                 </div>
               </div>
+            )}
 
-              {/* Progress Bar */}
-              <div className="w-full bg-gray-200 dark:bg-gray-700 h-4 rounded-full overflow-hidden shadow-inner">
-                <div
-                  className="bg-blue-500 h-4 rounded-full transition-all duration-500 ease-out"
-                  style={{ width: `${progress.percentage}%` }}
-                ></div>
+            {/* Final Status */}
+            {uploadError && (
+              <div className="text-center text-red-600 text-sm font-medium">
+                {uploadError}
               </div>
-            </div>
-          )}
-
-          {/* Final Status */}
-          {uploadError && (
-            <div className="mt-4 text-center text-red-600 text-sm font-medium">
-              {uploadError}
-            </div>
-          )}
-          {uploadSuccess && (
-            <div className="mt-4 text-center text-green-600 text-sm font-medium">
-              {uploadSuccess}
-            </div>
-          )}
+            )}
+            {uploadSuccess && (
+              <div className="text-center text-green-600 text-sm font-medium">
+                {uploadSuccess}
+              </div>
+            )}
+          </div>
         </div>
       </ComponentCard>
     </>

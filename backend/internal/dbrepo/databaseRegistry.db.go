@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -12,7 +13,7 @@ import (
 	"github.com/projuktisheba/vpanel/backend/internal/models"
 )
 
-// DatabaseRegistryRepo provides methods to manage MySQL user and database registries.
+// DatabaseRegistryRepo provides methods to manage user and database registries.
 // It supports creating, updating, soft-deleting, and checking deletion status for both users and databases.
 // All operations use pgxpool.Pool for PostgreSQL database interaction and respect context for timeouts/cancellation.
 type DatabaseRegistryRepo struct {
@@ -27,25 +28,25 @@ func newDatabaseRegistryRepo(db *pgxpool.Pool) *DatabaseRegistryRepo {
 	return &DatabaseRegistryRepo{db: db}
 }
 
-// InsertMySqlUserRegistry inserts a new user into mysql_db_users table.
+// InsertUserRegistry inserts a new user into db_users table.
 // Params:
 // - ctx: context for request cancellation/timeouts
 // - u: pointer to DBUser model containing Username and Password (encrypted)
 // Returns nil if successful, or an error if insertion fails or username already exists.
-func (r *DatabaseRegistryRepo) InsertMySqlUserRegistry(ctx context.Context, u *models.DBUser) error {
+func (r *DatabaseRegistryRepo) InsertDBUser(ctx context.Context, u *models.DBUser) error {
 	query := `
-		INSERT INTO mysql_db_users (username, password, created_at, updated_at)
-		VALUES ($1, $2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+		INSERT INTO db_users (username, password, user_type, created_at, updated_at)
+		VALUES ($1, $2, $3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 		RETURNING id, created_at, updated_at
 	`
 
-	row := r.db.QueryRow(ctx, query, u.Username, u.Password)
+	row := r.db.QueryRow(ctx, query, u.Username, u.Password, u.UserType)
 	err := row.Scan(&u.ID, &u.CreatedAt, &u.UpdatedAt)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" { // unique_violation
-			if pgErr.ConstraintName == "idx_mysql_db_users_username" {
-				return errors.New("username already exists")
+			if pgErr.ConstraintName == "idx_db_users_username" {
+				return errors.New("Username already exists")
 			}
 		}
 		return err
@@ -54,32 +55,33 @@ func (r *DatabaseRegistryRepo) InsertMySqlUserRegistry(ctx context.Context, u *m
 	return nil
 }
 
-// UpdateMySqlUserRegistry updates an existing user's username or password.
+// UpdateRegistry updates an existing user's username or password.
 // Params:
 // - ctx: context for request cancellation/timeouts
 // - u: pointer to DBUser model with ID set; Username or Password may be updated
 // Returns nil if successful, or an error if update fails.
-func (r *DatabaseRegistryRepo) UpdateMySqlUserRegistry(ctx context.Context, u *models.DBUser) error {
+func (r *DatabaseRegistryRepo) UpdateUserRegistry(ctx context.Context, u *models.DBUser) error {
 	query := `
-		UPDATE mysql_db_users
-		SET username = COALESCE(NULLIF($1,''), username),
-		    password = COALESCE(NULLIF($2,''), password),
+		UPDATE db_users
+		SET username = $1,
+		    password = $2,
+		    user_type = $3,
 		    updated_at = CURRENT_TIMESTAMP
-		WHERE id = $3
+		WHERE id = $4
 		RETURNING updated_at
 	`
-	row := r.db.QueryRow(ctx, query, u.Username, u.Password, u.ID)
+	row := r.db.QueryRow(ctx, query, u.Username, u.Password, u.UserType, u.ID)
 	return row.Scan(&u.UpdatedAt)
 }
 
-// DeleteUserFromMySqlUserRegistry performs a soft delete of a user by setting deleted_at timestamp.
+// DeleteUserUserRegistry performs a soft delete of a user by setting deleted_at timestamp.
 // Params:
 // - ctx: context
 // - userID: ID of the user to soft-delete
 // Returns nil if successful, or an error if user does not exist or already deleted.
-func (r *DatabaseRegistryRepo) DeleteUserFromMySqlUserRegistry(ctx context.Context, userID int64) error {
+func (r *DatabaseRegistryRepo) DeleteUserFromUserRegistry(ctx context.Context, userID int64) error {
 	query := `
-		UPDATE mysql_db_users
+		UPDATE db_users
 		SET deleted_at = CURRENT_TIMESTAMP
 		WHERE id = $1 AND deleted_at IS NULL
 	`
@@ -93,17 +95,17 @@ func (r *DatabaseRegistryRepo) DeleteUserFromMySqlUserRegistry(ctx context.Conte
 	return nil
 }
 
-// GetMySqlUserByUsername retrieves a MySQL DB user by username.
+// GetUserByUsername retrieves a DB user by username.
 // Returns the user struct if found and not soft-deleted.
 // Params:
 // - ctx: context
 // - username: username to search
 // Returns:
 // - *models.DBUser, error
-func (r *DatabaseRegistryRepo) GetMySqlUserByUsername(ctx context.Context, username string) (models.DBUser, error) {
+func (r *DatabaseRegistryRepo) GetUserByUsername(ctx context.Context, username string) (models.DBUser, error) {
 	query := `
-		SELECT id, username, password, created_at, updated_at, deleted_at
-		FROM mysql_db_users
+		SELECT id, username, password, user_type, created_at, updated_at, deleted_at
+		FROM db_users
 		WHERE username = $1
 	`
 
@@ -114,6 +116,7 @@ func (r *DatabaseRegistryRepo) GetMySqlUserByUsername(ctx context.Context, usern
 		&user.ID,
 		&user.Username,
 		&user.Password,
+		&user.UserType,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 		&deletedAt,
@@ -134,19 +137,23 @@ func (r *DatabaseRegistryRepo) GetMySqlUserByUsername(ctx context.Context, usern
 	return user, nil
 }
 
-// GetAllMySqlUsers retrieves all MySQL users that are not soft-deleted.
+// GetAllUsers retrieves all users that are not soft-deleted.
 // Returns a slice of DBUser records.
 // Params:
 // - ctx: context
 // Returns:
 // - ([]models.DBUser, error)
-func (r *DatabaseRegistryRepo) GetAllMySqlUsers(ctx context.Context) ([]*models.DBUser, error) {
-	query := `
-		SELECT id, username, password, created_at, updated_at
-		FROM mysql_db_users
-		WHERE deleted_at IS NULL
+func (r *DatabaseRegistryRepo) GetAllUsers(ctx context.Context, userType string) ([]*models.DBUser, error) {
+	UserTypeFilter := ""
+	if strings.TrimSpace(userType) != "" {
+		UserTypeFilter = fmt.Sprintf("AND user_type='%s'", userType)
+	}
+	query := fmt.Sprintf(`
+		SELECT id, username, password, user_type, created_at, updated_at
+		FROM db_users
+		WHERE deleted_at IS NULL %s
 		ORDER BY id ASC
-	`
+	`, UserTypeFilter)
 
 	rows, err := r.db.Query(ctx, query)
 	if err != nil {
@@ -162,6 +169,7 @@ func (r *DatabaseRegistryRepo) GetAllMySqlUsers(ctx context.Context) ([]*models.
 			&u.ID,
 			&u.Username,
 			&u.Password,
+			&u.UserType,
 			&u.CreatedAt,
 			&u.UpdatedAt,
 		)
@@ -178,36 +186,37 @@ func (r *DatabaseRegistryRepo) GetAllMySqlUsers(ctx context.Context) ([]*models.
 	return users, nil
 }
 
-// InsertMySqlDatabaseRegistry inserts a new database into mysql_databases table.
+// InsertDatabaseRegistry inserts a new database into databases table.
 // Params:
 // - ctx: context for request cancellation/timeouts
 // - d: pointer to Database model containing DBName and UserID
 // Returns nil if successful, or an error if insertion fails.
-func (r *DatabaseRegistryRepo) InsertMySqlDatabaseRegistry(ctx context.Context, d *models.Database) error {
+func (r *DatabaseRegistryRepo) InsertDatabaseRegistry(ctx context.Context, d *models.Database) error {
 	query := `
-		INSERT INTO mysql_databases (db_name, user_id, created_at, updated_at)
-		VALUES ($1, $2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+		INSERT INTO databases (db_name, db_type, user_id, created_at, updated_at)
+		VALUES ($1, $2, $3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 		RETURNING id, created_at, updated_at
 	`
-	row := r.db.QueryRow(ctx, query, d.DBName, d.UserID)
+	row := r.db.QueryRow(ctx, query, d.DBName, d.DBType, d.UserID)
 	return row.Scan(&d.ID, &d.CreatedAt, &d.UpdatedAt)
 }
 
-// UpdateMySqlDatabaseRegistry updates the database name or user of an existing record.
+// UpdateDatabaseRegistry updates the database name or user of an existing record.
 // Params:
 // - ctx: context for request cancellation/timeouts
 // - d: pointer to Database model with ID set; DBName or UserID may be updated
 // Returns nil if successful, or an error if update fails.
-func (r *DatabaseRegistryRepo) UpdateMySqlDatabaseRegistry(ctx context.Context, d *models.Database) error {
+func (r *DatabaseRegistryRepo) UpdateDatabaseRegistry(ctx context.Context, d *models.Database) error {
 	query := `
-		UPDATE mysql_databases
+		UPDATE databases
 		SET db_name = COALESCE(NULLIF($1,''), db_name),
-		    user_id = COALESCE(NULLIF($2,0), user_id),
+			db_type = COALESCE(NULLIF($2,''), db_type),
+			user_id = COALESCE(NULLIF($3,0), user_id),
 		    updated_at = CURRENT_TIMESTAMP
-		WHERE id = $3
+		WHERE id = $4
 		RETURNING updated_at
 	`
-	row := r.db.QueryRow(ctx, query, d.DBName, d.UserID, d.ID)
+	row := r.db.QueryRow(ctx, query, d.DBName, d.DBType, d.UserID, d.ID)
 	return row.Scan(&d.UpdatedAt)
 }
 
@@ -218,7 +227,7 @@ func (r *DatabaseRegistryRepo) UpdateMySqlDatabaseRegistry(ctx context.Context, 
 // Returns nil if successful, or an error if database does not exist or already deleted.
 func (r *DatabaseRegistryRepo) DeleteDatabase(ctx context.Context, dbID int64) error {
 	query := `
-		UPDATE mysql_databases
+		UPDATE databases
 		SET deleted_at = CURRENT_TIMESTAMP
 		WHERE id = $1 AND deleted_at IS NULL
 	`
@@ -239,17 +248,18 @@ func (r *DatabaseRegistryRepo) DeleteDatabase(ctx context.Context, dbID int64) e
 // - dbName: the name of the database to search
 // Returns:
 // - *models.Database, error
-func (r *DatabaseRegistryRepo) GetMySQLDatabaseByName(ctx context.Context, dbName string) (models.Database, error) {
+func (r *DatabaseRegistryRepo) GetDatabaseByName(ctx context.Context, dbName string) (models.Database, error) {
 	query := `
         SELECT
             d.id,
             d.db_name,
+            d.db_type,
             d.user_id,
             d.deleted_at,
             COALESCE(u.username, '') AS username,
             COALESCE(u.password, '') AS password
-        FROM mysql_databases d
-        LEFT JOIN mysql_db_users u ON d.user_id = u.id
+        FROM databases d
+        LEFT JOIN db_users u ON d.user_id = u.id
         WHERE d.db_name = $1
         LIMIT 1
     `
@@ -261,6 +271,7 @@ func (r *DatabaseRegistryRepo) GetMySQLDatabaseByName(ctx context.Context, dbNam
 	err := r.db.QueryRow(ctx, query, dbName).Scan(
 		&d.ID,
 		&d.DBName,
+		&d.DBType,
 		&d.UserID,
 		&deletedAt,
 		&d.User.Username,
@@ -283,20 +294,25 @@ func (r *DatabaseRegistryRepo) GetMySQLDatabaseByName(ctx context.Context, dbNam
 
 // GetAllDatabase returns all saved databases from the registry,
 // including username and password using LEFT JOIN so entries with no user still appear.
-func (r *DatabaseRegistryRepo) GetAllMySQLDatabase(ctx context.Context) ([]*models.Database, error) {
-
-	query := `
+func (r *DatabaseRegistryRepo) GetAllDatabase(ctx context.Context, databaseType string) ([]*models.Database, error) {
+	filter := ""
+	if strings.TrimSpace(databaseType) != "" {
+		filter = fmt.Sprintf("WHERE db_type='%s'", databaseType)
+	}
+	query := fmt.Sprintf(`
         SELECT
             d.id,
             d.db_name,
+            d.db_type,
 			d.user_id,
 			d.deleted_at,
             COALESCE(u.username, '') AS username,
             COALESCE(u.password, '') AS password
-        FROM mysql_databases d
-        LEFT JOIN mysql_db_users u ON d.user_id = u.id
+        FROM databases d
+        LEFT JOIN db_users u ON d.user_id = u.id
+		%s
         ORDER BY d.id ASC
-    `
+    `, filter)
 
 	rows, err := r.db.Query(ctx, query)
 	if err != nil {
@@ -313,6 +329,7 @@ func (r *DatabaseRegistryRepo) GetAllMySQLDatabase(ctx context.Context) ([]*mode
 		err := rows.Scan(
 			&d.ID,
 			&d.DBName,
+			&d.DBType,
 			&d.UserID,
 			&deletedAt,
 			&u.Username,
@@ -332,98 +349,4 @@ func (r *DatabaseRegistryRepo) GetAllMySQLDatabase(ctx context.Context) ([]*mode
 	}
 
 	return databases, nil
-}
-
-// InsertMySqlUser inserts a new user into mysql_db_users table.
-// Params:
-// - ctx: context for request cancellation/timeouts
-// - u: pointer to MySQLUser model containing Username and Password
-// Returns nil if successful, or an error if insertion fails.
-func (r *DatabaseRegistryRepo) InsertMySqlUser(ctx context.Context, u models.DBUser) error {
-	// Encrypt the password before storing
-	// encPassword, err := utils.EncryptAES(u.Password)
-	// if err != nil {
-	// 	return fmt.Errorf("failed to encrypt password: %w", err)
-	// }
-
-	query := `
-		INSERT INTO mysql_db_users (username, password, created_at, updated_at)
-		VALUES ($1, $2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-		RETURNING id, created_at, updated_at
-	`
-	row := r.db.QueryRow(ctx, query, u.Username, u.Password)
-	return row.Scan(&u.ID, &u.CreatedAt, &u.UpdatedAt)
-}
-
-// UpdateMySqlUser updates username and/or password for an existing MySQL user.
-// Params:
-// - ctx: context for request cancellation/timeouts
-// - u: pointer to MySQLUser model containing ID, Username, and Password
-// Returns nil if successful, or an error if update fails.
-func (r *DatabaseRegistryRepo) UpdateMySqlUser(ctx context.Context, u *models.DBUser) error {
-	// Encrypt password before storing
-	// encPassword, err := utils.EncryptAES(u.Password)
-	// if err != nil {
-	// 	return fmt.Errorf("failed to encrypt password: %w", err)
-	// }
-
-	query := `
-		UPDATE mysql_db_users
-		SET password = $1,
-		    updated_at = CURRENT_TIMESTAMP
-		WHERE username = $2 AND deleted_at IS NULL
-		RETURNING updated_at
-	`
-	row := r.db.QueryRow(ctx, query, u.Password, u.Username)
-	return row.Scan(&u.UpdatedAt)
-}
-
-// DeleteMySqlUser marks a MySQL user as deleted (soft delete).
-// Params:
-// - ctx: context for request cancellation/timeouts
-// - userID: ID of the user to delete
-// Returns nil if successful, or an error if deletion fails.
-func (r *DatabaseRegistryRepo) DeleteMySqlUser(ctx context.Context, username int) error {
-	query := `
-		UPDATE mysql_db_users
-		SET deleted_at = CURRENT_TIMESTAMP,
-		    updated_at = CURRENT_TIMESTAMP
-		WHERE username = $1 AND deleted_at IS NULL
-	`
-	_, err := r.db.Exec(ctx, query, username)
-	return err
-}
-
-// ListMySqlUsers fetches all MySQL users that are not soft-deleted.
-// Params:
-// - ctx: context for request cancellation/timeouts
-// Returns a slice of MySQLUser and an error if any.
-func (r *DatabaseRegistryRepo) ListMySqlUsers(ctx context.Context) ([]*models.DBUser, error) {
-	query := `
-		SELECT id, username, password, created_at, updated_at, deleted_at
-		FROM mysql_db_users
-		WHERE deleted_at IS NULL
-		ORDER BY created_at DESC
-	`
-
-	rows, err := r.db.Query(ctx, query)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query MySQL users: %w", err)
-	}
-	defer rows.Close()
-
-	var users []*models.DBUser
-	for rows.Next() {
-		u := &models.DBUser{}
-		if err := rows.Scan(&u.ID, &u.Username, &u.Password, &u.CreatedAt, &u.UpdatedAt, &u.DeletedAt); err != nil {
-			return nil, fmt.Errorf("failed to scan MySQL user: %w", err)
-		}
-		users = append(users, u)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("rows iteration error: %w", err)
-	}
-
-	return users, nil
 }

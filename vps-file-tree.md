@@ -5,22 +5,22 @@ This document explains the folder structure used in the `projuktisheba` workspac
 ```
 $USERHOME/projuktisheba/
 │
-├── projects/                # All live project folders
-│   ├── example.com/         # Individual project folder named by domain
-│   │   ├── src/             # Source code of the project
-│   │   ├── config/          # Project-specific configuration files
-│   │   ├── assets/          # Static assets (images, fonts, icons)
-│   │   ├── logs/            # Log files for this project
-│   │   └── README.md        # Optional project-specific README
+├── projects/                         # All live project folders
+│   ├── example.com/                  # Individual project folder named by domain
+│   │   ├── src/                      # Source code of the project
+│   │   ├── config/                   # Project-specific configuration files
+│   │   ├── assets/                   # Static assets (images, fonts, icons)
+│   │   ├── logs/                     # Log files for this project
+│   │   └── README.md                 # Optional project-specific README
 │   └── anotherdomain.com/
 │
-├── templates/               # Templates for new projects
-│   ├── databases/           # Predefined database structures or SQL scripts
-│   └── projects/            # Boilerplate project templates
-│       ├── web-template/    # Example template for a web project
-│       └── api-template/    # Example template for an API project
+├── templates/                        # Templates for new projects
+│   ├── databases/                    # Predefined database structures or SQL scripts
+│   └── projects/                     # Boilerplate project templates
+│       ├── <projectFramework>/       # Example template for a web project
+│         └── <projectName>/          # Example template for an API project
 │
-└── README.md                # This documentation
+└── README.md                         # This documentation
 ```
 
 ## Folder Details

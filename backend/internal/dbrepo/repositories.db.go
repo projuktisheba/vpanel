@@ -9,6 +9,8 @@ type DBRepository struct {
 	UserRepo    *UserRepo
 	DBRegistry *DatabaseRegistryRepo
 	MySQL    *MySQLManagerRepo
+	Domain *DomainRepo
+	ProjectRepo *ProjectRepo
 }
 
 // NewDBRepository initializes all repositories with a shared connection pool
@@ -17,5 +19,7 @@ func NewDBRepository(db *pgxpool.Pool) *DBRepository {
 		UserRepo:    NewUserRepo(db),
 		DBRegistry: newDatabaseRegistryRepo(db),
 		MySQL:    NewMySQLManagerRepo(),
+		Domain: NewDomainRepo(db),
+		ProjectRepo: NewProjectRepo(db),
 	}
 }

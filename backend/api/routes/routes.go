@@ -60,8 +60,11 @@ func Routes(env string, db *dbrepo.DBRepository, jwt models.JWTConfig, infoLogge
 	// Mount database registry routes
 	mux.Mount("/api/v1/db", databaseRegistryRoutes())
 
-	// Mount project handlers routes
+	// Mount project handler routes
 	mux.Mount("/api/v1/project", projectHandlerRoutes())
+	
+	// Mount domain handler routes
+	mux.Mount("/api/v1/domain", domainHandlerRoutes())
 
 	return mux
 }

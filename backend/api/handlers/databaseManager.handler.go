@@ -53,7 +53,7 @@ func (h *DatabaseManagerHandler) CreateMySQLDatabase(w http.ResponseWriter, r *h
 	// ==================== Step 1: Handle user ====================
 	if req.Username != "" {
 		// Check if user exists in MySQL
-		registryUser, err = h.DB.DBRegistry.GetMySqlUserByUsername(r.Context(), req.Username)
+		registryUser, err = h.DB.DBRegistry.GetUserByUsername(r.Context(), req.Username)
 		if err != nil {
 			utils.BadRequest(w, fmt.Errorf("Database user not found"))
 			return
@@ -61,7 +61,7 @@ func (h *DatabaseManagerHandler) CreateMySQLDatabase(w http.ResponseWriter, r *h
 	}
 
 	// ==================== Step 2: Handle database ====================
-	registryDB, err = h.DB.DBRegistry.GetMySQLDatabaseByName(r.Context(), req.DatabaseName)
+	registryDB, err = h.DB.DBRegistry.GetDatabaseByName(r.Context(), req.DatabaseName)
 
 	if err != nil {
 		// Create the database, assign user if provided
@@ -73,9 +73,10 @@ func (h *DatabaseManagerHandler) CreateMySQLDatabase(w http.ResponseWriter, r *h
 
 	// Add database to registry
 	registryDB.DBName = req.DatabaseName
+	registryDB.DBType = "mysql"
 	registryDB.UserID = registryUser.ID
-	if err := h.DB.DBRegistry.InsertMySqlDatabaseRegistry(r.Context(), &registryDB); err != nil {
-		if strings.Contains(err.Error(), "mysql_databases_db_name_key") {
+	if err := h.DB.DBRegistry.InsertDatabaseRegistry(r.Context(), &registryDB); err != nil {
+		if strings.Contains(err.Error(), "databases_db_name_key") {
 			utils.BadRequest(w, fmt.Errorf("Database %s already exist", registryDB.DBName))
 			return
 		}
@@ -126,7 +127,7 @@ func (h *DatabaseManagerHandler) ImportMySQLDatabase(w http.ResponseWriter, r *h
 	h.infoLog.Println("Importing SQL for database:", dbName)
 
 	// Check if database exists in registry
-	registryDB, err := h.DB.DBRegistry.GetMySQLDatabaseByName(r.Context(), dbName)
+	registryDB, err := h.DB.DBRegistry.GetDatabaseByName(r.Context(), dbName)
 	if err != nil || registryDB.ID == 0 {
 		utils.BadRequest(w, fmt.Errorf("database %s not found in registry", dbName))
 		return
@@ -179,7 +180,7 @@ func (h *DatabaseManagerHandler) ImportMySQLDatabase(w http.ResponseWriter, r *h
 	}
 
 	// ==================== Build response ====================
-	
+
 	var resp models.Response
 	resp.Error = false
 	resp.Message = "Database updated successfully"
@@ -201,7 +202,7 @@ func (h *DatabaseManagerHandler) DeleteMySQLDatabase(w http.ResponseWriter, r *h
 	// ----------------------------------------
 	// 1 Check if database exists in registry
 	// ----------------------------------------
-	registryDB, err := h.DB.DBRegistry.GetMySQLDatabaseByName(r.Context(), dbName)
+	registryDB, err := h.DB.DBRegistry.GetDatabaseByName(r.Context(), dbName)
 	if err != nil {
 		utils.BadRequest(w, fmt.Errorf("database '%s' does not exist", dbName))
 		return
@@ -226,7 +227,7 @@ func (h *DatabaseManagerHandler) DeleteMySQLDatabase(w http.ResponseWriter, r *h
 	}
 
 	// ----------------------------------------
-	// 4️⃣ Response
+	// 4 Response
 	// ----------------------------------------
 	var resp models.Response
 	resp.Error = false
@@ -249,7 +250,7 @@ func (h *DatabaseManagerHandler) DeleteMySQLDatabase(w http.ResponseWriter, r *h
 func (h *DatabaseManagerHandler) ListMySQLDatabases(w http.ResponseWriter, r *http.Request) {
 
 	// Fetch databases
-	databases, err := h.DB.DBRegistry.GetAllMySQLDatabase(r.Context())
+	databases, err := h.DB.DBRegistry.GetAllDatabase(r.Context(), "mysql")
 	if err != nil {
 		h.errorLog.Println("ERROR_01_ListMySQLUsers: failed to fetch database list:", err)
 		utils.BadRequest(w, fmt.Errorf("failed to list databases: %w", err))
@@ -291,6 +292,8 @@ func (h *DatabaseManagerHandler) CreateMySQLUser(w http.ResponseWriter, r *http.
 		utils.BadRequest(w, fmt.Errorf("dbName, user, and password are required"))
 		return
 	}
+	//specify user type
+	payload.UserType = "mysql"
 
 	// Create the MySQL user
 	err := h.DB.MySQL.CreateMySQLUser(r.Context(), h.mysqlRootDSN, payload.Username, payload.Password, []string{})
@@ -301,9 +304,9 @@ func (h *DatabaseManagerHandler) CreateMySQLUser(w http.ResponseWriter, r *http.
 	}
 
 	// Call DBRegistry to create the MySQL user
-	err = h.DB.DBRegistry.InsertMySqlUser(r.Context(), payload)
+	err = h.DB.DBRegistry.InsertDBUser(r.Context(), &payload)
 	if err != nil {
-		if strings.Contains(err.Error(), "mysql_db_users_username_key") {
+		if strings.Contains(err.Error(), "db_users_username_key") {
 			utils.BadRequest(w, fmt.Errorf("User %s already exist", payload.Username))
 			return
 		}
@@ -334,7 +337,7 @@ func (h *DatabaseManagerHandler) CreateMySQLUser(w http.ResponseWriter, r *http.
 // Only users that are not soft-deleted are returned.
 func (h *DatabaseManagerHandler) ListMySQLUsers(w http.ResponseWriter, r *http.Request) {
 	// Fetch all users from the DBRegistry repository
-	users, err := h.DB.DBRegistry.ListMySqlUsers(r.Context())
+	users, err := h.DB.DBRegistry.GetAllUsers(r.Context(), "mysql")
 	if err != nil {
 		h.errorLog.Println("ERROR_01_ListMySQLUsers: failed to fetch users:", err)
 		utils.BadRequest(w, fmt.Errorf("failed to list users: %w", err))
