@@ -48,8 +48,8 @@ func newProjectHandler(db *dbrepo.DBRepository, infoLog, errorLog *log.Logger) P
 //  5. Remove temporary chunk files and optionally the ZIP file.
 //  6. Return a JSON response indicating success or failure.
 func (h *ProjectHandler) UploadProjectFolder(w http.ResponseWriter, r *http.Request) {
-	// Parse multipart form (limit to 500MB per chunk)
-	if err := r.ParseMultipartForm(500 << 20); err != nil {
+	// Parse multipart form (limit to 50MB per chunk)
+	if err := r.ParseMultipartForm(50 << 20); err != nil {
 		h.errorLog.Println("ERROR_01_UploadProjectFolder: failed to parse form:", err)
 		utils.BadRequest(w, fmt.Errorf("invalid form data: %w", err))
 		return
@@ -125,25 +125,21 @@ func (h *ProjectHandler) UploadProjectFolder(w http.ResponseWriter, r *http.Requ
 			return
 		}
 
+		// Merge all chunks
 		if err := mergeChunks(tmpDir, finalZipPath, totalChunks); err != nil {
 			h.errorLog.Println("ERROR_06_UploadProjectFolder: failed to merge chunks:", err)
 			utils.ServerError(w, fmt.Errorf("failed to merge chunks: %w", err))
 			return
 		}
 
+		// Extract ZIP **once**
 		if err := extractZip(finalZipPath, projectDir); err != nil {
 			h.errorLog.Println("ERROR_07_UploadProjectFolder: failed to extract ZIP:", err)
 			utils.ServerError(w, fmt.Errorf("failed to extract ZIP: %w", err))
 			return
 		}
-		// Testing: Unzip final file
-		err = extractZip(finalZipPath, projectDir)
-		if err != nil {
-			h.errorLog.Println("ERROR_08_UploadProjectFolder: failed to unzip final file:", err)
-			utils.ServerError(w, fmt.Errorf("failed to unzip final file: %w", err))
-			return
-		}
-		// Clean up temporary files
+
+		// Clean up temporary files and ZIP
 		os.RemoveAll(tmpDir)
 		os.Remove(finalZipPath)
 	}
