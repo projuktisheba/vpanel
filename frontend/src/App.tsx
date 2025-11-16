@@ -23,11 +23,12 @@ import { ScrollToTop } from "./components/common/ScrollToTop";
 import { ProtectedRoute } from "./components/protectedRoute";
 import { AuthProvider } from "./context/AuthContext";
 import Home from "./pages/Dashboard/Home";
-import MySQL from "./pages/DatabaseMangement/MySQL/MySQL";
+import MySQL from "./pages/DatabaseMangement/MySQL";
 import PostgreSQL from "./pages/DatabaseMangement/PostgreSQL";
 import Wordpress from "./pages/AppManager/Wordpress";
 import PHP from "./pages/AppManager/PHP";
 import PreBuildSite from "./pages/AppManager/PreBuildSite";
+import Domain from "./pages/Domain/DomainManager";
 
 export default function App() {
   return (
@@ -56,6 +57,8 @@ export default function App() {
             {/* Database Manager */}
             <Route path="/mysql" element={<MySQL />} />
             <Route path="/postgresql" element={<PostgreSQL />} />
+            {/* Domain Manager */}
+            <Route path="/domain" element={<Domain />} />
 
             {/* UI Elements */}
             <Route path="/alerts" element={<Alerts />} />

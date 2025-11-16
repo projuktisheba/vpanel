@@ -9,11 +9,11 @@ import {
   GridIcon,
   HorizontaLDots,
   PageIcon,
-  TableIcon,
   UserCircleIcon,
 } from "../icons";
 import { useSidebar } from "../context/SidebarContext";
 import SidebarWidget from "./SidebarWidget";
+import { DatabaseIcon, Globe } from "lucide-react";
 
 type NavItem = {
   name: string;
@@ -39,10 +39,17 @@ const navItems: NavItem[] = [
   },
   {
     name: "Database Manager",
-    icon: <TableIcon />,
+    icon: <DatabaseIcon />,
     subItems: [
       { name: "MySQL", path: "/mysql", pro: false },
       { name: "PostgreSQL", path: "/postgresql", pro: false },
+    ],
+  },
+  {
+    name: "Domain Management",
+    icon: <Globe />,
+    subItems: [
+      { name: "Domains", path: "/domain", pro: false },
     ],
   },
   

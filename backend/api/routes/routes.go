@@ -12,7 +12,7 @@ import (
 	"github.com/projuktisheba/vpanel/backend/api/middlewares"
 	"github.com/projuktisheba/vpanel/backend/internal/dbrepo"
 	"github.com/projuktisheba/vpanel/backend/internal/models"
-	"github.com/projuktisheba/vpanel/backend/utils"
+	"github.com/projuktisheba/vpanel/backend/internal/utils"
 )
 
 var handlerRepo *handlers.HandlerRepo
@@ -62,7 +62,7 @@ func Routes(env string, db *dbrepo.DBRepository, jwt models.JWTConfig, infoLogge
 
 	// Mount project handler routes
 	mux.Mount("/api/v1/project", projectHandlerRoutes())
-	
+
 	// Mount domain handler routes
 	mux.Mount("/api/v1/domain", domainHandlerRoutes())
 

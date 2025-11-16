@@ -11,9 +11,9 @@ type User struct {
 	Mobile       string    `json:"mobile"`
 	Email        string    `json:"email"`
 	Password     string    `json:"-"` // don't expose passwords in JSON
-	JoiningDate  time.Time `json:"joining_date"`
+	JoiningDate  time.Time `json:"joiningDate"`
 	Address      string    `json:"address"`
-	AvatarLink   string    `json:"avatar_link,omitempty"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	AvatarLink   string    `json:"avatarLink,omitempty"`
+	CreatedAt    time.Time `json:"createdAt"`
+	UpdatedAt    time.Time `json:"updatedAt"`
 }

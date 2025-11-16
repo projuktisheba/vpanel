@@ -1,30 +1,30 @@
-import PageBreadcrumb from "../../../components/common/PageBreadCrumb";
-import ComponentCard from "../../../components/common/ComponentCard";
-import PageMeta from "../../../components/common/PageMeta";
-import Button from "../../../components/ui/button/Button";
-import Input from "../../../components/form/input/InputField";
-import Label from "../../../components/form/Label";
+import PageBreadcrumb from "../../components/common/PageBreadCrumb";
+import ComponentCard from "../../components/common/ComponentCard";
+import PageMeta from "../../components/common/PageMeta";
+import Button from "../../components/ui/button/Button";
+import Input from "../../components/form/input/InputField";
+import Label from "../../components/form/Label";
 import { useState, FormEvent, useEffect } from "react";
 
-import Select from "../../../components/form/Select";
-import { EyeCloseIcon, MoreDotIcon } from "../../../icons";
-import { databaseManager } from "../../../services/databaseManager.service";
-import DataTable from "../../../components/tables/BasicTables/DataTable";
+import Select from "../../components/form/Select";
+import { EyeCloseIcon, MoreDotIcon } from "../../icons";
+import { databaseManager } from "../../services/databaseManager.service";
+import DataTable from "../../components/tables/BasicTables/DataTable";
 import {
   Database,
   DBUser,
-} from "../../../interfaces/databaseManager.interface";
-import { Dropdown } from "../../../components/ui/dropdown/Dropdown";
-import { DropdownItem } from "../../../components/ui/dropdown/DropdownItem";
-import { Modal } from "../../../components/ui/modal";
-import AlertModal from "../../../components/ui/modal/AlertModal";
+} from "../../interfaces/databaseManager.interface";
+import { Dropdown } from "../../components/ui/dropdown/Dropdown";
+import { DropdownItem } from "../../components/ui/dropdown/DropdownItem";
+import { Modal } from "../../components/ui/modal";
+import AlertModal from "../../components/ui/modal/AlertModal";
 import moment from "moment";
-import FileInput from "../../../components/form/input/FileInput";
+import FileInput from "../../components/form/input/FileInput";
 
 import { EyeIcon, Loader } from "lucide-react";
-import Tabs from "../../UiElements/Tabs";
-import Form from "../../../components/form/Form";
-import { Preloader } from "../../../components/preloaders/Preloader";
+import Tabs from "../UiElements/Tabs";
+import Form from "../../components/form/Form";
+import { Preloader } from "../../components/preloader/Preloader";
 interface Option {
   value: string;
   label: string;
@@ -592,7 +592,7 @@ export default function MySQL() {
                 {/* Database Name */}
                 <div>
                   <Label>
-                    Database Name{" * "}
+                    Database Name {" "}
                     <span className="text-red-700 font-medium"> *</span>
                   </Label>
                   <Input

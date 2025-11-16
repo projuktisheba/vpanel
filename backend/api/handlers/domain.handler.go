@@ -12,7 +12,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/projuktisheba/vpanel/backend/internal/dbrepo"
 	"github.com/projuktisheba/vpanel/backend/internal/models"
-	"github.com/projuktisheba/vpanel/backend/utils"
+	"github.com/projuktisheba/vpanel/backend/internal/utils"
 )
 
 type DomainHandler struct {
@@ -31,27 +31,22 @@ func newDomainHandler(db *dbrepo.DBRepository, infoLog, errorLog *log.Logger) Do
 
 // ==================== Create Domain ====================
 func (h *DomainHandler) CreateDomain(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Domain        string  `json:"domain"`
-		SSLUpdateDate *string `json:"ssl_update_date,omitempty"`
-	}
-
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	var domain models.Domain
+	err := utils.ReadJSON(w, r, &domain)
+	if err != nil {
 		h.errorLog.Println("ERROR_CreateDomain: failed to decode request:", err)
 		utils.BadRequest(w, errors.New("invalid JSON body"))
 		return
 	}
 
-	if err := ValidateDomain(req.Domain); err != nil {
+	// validate domain name
+	if err := ValidateDomain(domain.Domain); err != nil {
 		utils.BadRequest(w, err)
 		return
 	}
 
-	d := &models.Domain{
-		Domain: req.Domain,
-	}
-
-	err := h.DB.Domain.CreateDomain(r.Context(), d)
+	// sanitize parameters
+	err = h.DB.Domain.CreateDomain(r.Context(), &domain)
 	if err != nil {
 		h.errorLog.Println("ERROR_CreateDomain:", err)
 		utils.ServerError(w, err)

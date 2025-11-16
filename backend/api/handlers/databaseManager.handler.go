@@ -11,7 +11,7 @@ import (
 
 	"github.com/projuktisheba/vpanel/backend/internal/dbrepo"
 	"github.com/projuktisheba/vpanel/backend/internal/models"
-	"github.com/projuktisheba/vpanel/backend/utils"
+	"github.com/projuktisheba/vpanel/backend/internal/utils"
 )
 
 type DatabaseManagerHandler struct {

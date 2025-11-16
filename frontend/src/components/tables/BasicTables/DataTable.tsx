@@ -83,24 +83,24 @@ export default function DataTable({
 
     if (value === null || value === undefined) return false;
 
-    // 🔍 Case-insensitive string match
+    // Case-insensitive string match
     if (typeof value === "string") {
       return value.toLowerCase().includes(query);
     }
 
-    // 🔍 Number → convert to string
+    // Number → convert to string
     if (typeof value === "number") {
       return value.toString().includes(query);
     }
 
-    // 🔍 Array (search inside all items)
+    // Array (search inside all items)
     if (Array.isArray(value)) {
       return value.some((item) =>
         item?.toString().toLowerCase().includes(query)
       );
     }
 
-    // 🔍 Object (search across all values)
+    // Object (search across all values)
     if (typeof value === "object") {
       return Object.values(value)
         .join(" ")
@@ -262,7 +262,7 @@ export default function DataTable({
       </div>
 
       {/* Table */}
-      <div className="max-w-full overflow-x-auto">
+      <div className="max-w-full overflow-x-auto pb-24">
         <Table>
           {/* Table Header */}
           <TableHeader className="border-b border-gray-100 dark:border-white/[0.05]">

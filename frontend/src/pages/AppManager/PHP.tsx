@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { UploadProgress } from "../../interfaces/common.interface";
-import { projectService } from "../../services/projectHandler.service";
+import { projectService } from "../../services/projectManager.service";
 import { FileIcon } from "../../icons";
 import ComponentCard from "../../components/common/ComponentCard";
 import PageBreadcrumb from "../../components/common/PageBreadCrumb";

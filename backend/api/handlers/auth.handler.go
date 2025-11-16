@@ -9,7 +9,7 @@ import (
 
 	"github.com/projuktisheba/vpanel/backend/internal/dbrepo"
 	"github.com/projuktisheba/vpanel/backend/internal/models"
-	"github.com/projuktisheba/vpanel/backend/utils"
+	"github.com/projuktisheba/vpanel/backend/internal/utils"
 )
 
 type AuthHandler struct {
@@ -83,14 +83,14 @@ func (h *AuthHandler) Signin(w http.ResponseWriter, r *http.Request) {
 
 	// Build response
 	resp := struct {
-		Error    bool             `json:"error"`
-		AccessToken    string           `json:"accessToken"`
-		RefreshToken    string           `json:"refreshToken"`
-		User *models.User `json:"user"`
+		Error        bool         `json:"error"`
+		AccessToken  string       `json:"accessToken"`
+		RefreshToken string       `json:"refreshToken"`
+		User         *models.User `json:"user"`
 	}{
-		Error:    false,
-		AccessToken:    token,
-		User: user,
+		Error:       false,
+		AccessToken: token,
+		User:        user,
 	}
 
 	utils.WriteJSON(w, http.StatusOK, resp)

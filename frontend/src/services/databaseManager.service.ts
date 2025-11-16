@@ -94,7 +94,7 @@ export const databaseManager = {
 
   listMySQLDB: async (): Promise<any> => {
     try {
-      const response = await HttpClient.get("db/mysql/databases");
+      const response = await HttpClient.get("/db/mysql/databases");
       console.log(response.data);
       return response.data; // return the full response
     } catch (error: any) {
