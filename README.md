@@ -15,6 +15,9 @@ VPanel allows you to:
 * Transfer websites between servers seamlessly
 
 ---
+## Prerequisite
+
+* **nginx mysql-server, postgresql unzip git curl software-properties-common**
 
 ## Features
 

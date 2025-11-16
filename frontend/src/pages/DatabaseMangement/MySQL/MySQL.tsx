@@ -76,7 +76,8 @@ export default function MySQL() {
 
   // Fetch available users
   const fetchUsers = async () => {
-    setLoading(true);
+    
+    if (!openCreateDBModal && openCreateUserModal ) setLoading(true);
     try {
       const res = await databaseManager.listMySQLUsers();
       // res here is the whole API response, so extract the databases array
@@ -163,7 +164,7 @@ export default function MySQL() {
   }));
 
   const fetchDatabases = async () => {
-    setLoading(true);
+    if (!openCreateDBModal && openCreateUserModal ) setLoading(true);
     try {
       const res = await databaseManager.listMySQLDB();
       // res here is the whole API response, so extract the databases array
@@ -293,6 +294,7 @@ export default function MySQL() {
       );
 
       if (resp?.error) {
+        
         setAlertModalTitle("Error Deleting Database");
         setAlertModalMessage(resp.message || "Failed to delete the database.");
         setAlertModalType("error");

@@ -1,91 +1,82 @@
-import PageBreadcrumb from "../../components/common/PageBreadCrumb";
-import ComponentCard from "../../components/common/ComponentCard";
-import Input from "../../components/form/input/InputField";
-import Label from "../../components/form/Label";
-import Select from "../../components/form/Select";
-import PageMeta from "../../components/common/PageMeta";
-import { TimeIcon } from "../../icons";
+import React, { useState } from "react";
+import { UploadProgress } from "../../interfaces/common.interface";
+import { projectService } from "../../services/projectHandler.service";
 
-export default function PHP() {
-    // const [showPassword, setShowPassword] = useState(false);
-      const options = [
-        { value: "marketing", label: "Marketing" },
-        { value: "template", label: "Template" },
-        { value: "development", label: "Development" },
-      ];
-      const handleSelectChange = (value: string) => {
-        console.log("Selected value:", value);
-      };
-      // const [dateOfBirth, setDateOfBirth] = useState("");
-    
-      // const handleDateChange = (date: Date[]) => {
-      //   setDateOfBirth(date[0].toLocaleDateString()); // Handle selected date and format it
-      // };
+export default function ProjectUploader() {
+  const [file, setFile] = useState<File | null>(null);
+  const [projectName, setProjectName] = useState<string>("");
+  const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState<UploadProgress | null>(null);
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = e.target.files?.[0] || null;
+    setFile(selected);
+  };
+
+  const handleUpload = async () => {
+    if (!file || !projectName) {
+      alert("Please select a ZIP file and enter a project name.");
+      return;
+    }
+
+    setUploading(true);
+    setProgress({ uploadedChunks: 0, totalChunks: 0, percentage: 0 });
+
+    try {
+      await projectService.uploadProjectFolder(projectName, file, (p) => {
+        setProgress(p);
+      });
+
+      alert("Project folder uploaded successfully!");
+    } catch (err) {
+      console.error(err);
+      alert("Upload failed. Check console.");
+    } finally {
+      setUploading(false);
+      setProgress(null);
+    }
+  };
+
   return (
-    <div>
-      <PageMeta title="PHP Site Manager" description="Manage You PHP Sites" />
-      <PageBreadcrumb pageTitle="PHP Site Manager" />
-     <ComponentCard title="Default Inputs">
-      <div className="space-y-6">
-        <div>
-          <Label htmlFor="input">Input</Label>
-          <Input type="text" id="input" />
-        </div>
-        <div>
-          <Label htmlFor="inputTwo">Input with Placeholder</Label>
-          <Input type="text" id="inputTwo" placeholder="info@gmail.com" />
-        </div>
-        <div>
-          <Label>Select Input</Label>
-          <Select
-            options={options}
-            placeholder="Select an option"
-            onChange={handleSelectChange}
-            className="dark:bg-dark-900"
-          />
-        </div>
-        <div>
-          <Label htmlFor="tm">Date Picker Input</Label>
-          <div className="relative">
-            <Input
-              type="time"
-              id="tm"
-              name="tm"
-              onChange={(e) => console.log(e.target.value)}
+    <div className="p-4 border rounded w-full max-w-md mx-auto">
+      <input
+        type="text"
+        placeholder="Enter project name"
+        value={projectName}
+        onChange={(e) => setProjectName(e.target.value)}
+        className="mb-2 p-1 border rounded w-full"
+      />
+
+      {/* Select only zip file */}
+      <input
+        type="file"
+        accept=".zip"
+        onChange={handleFileSelect}
+        className="mb-2 w-full"
+      />
+
+      <button
+        onClick={handleUpload}
+        disabled={uploading || !file}
+        className="px-4 py-2 bg-blue-500 text-white rounded w-full"
+      >
+        {uploading ? "Uploading..." : "Upload ZIP"}
+      </button>
+
+      {uploading && progress && (
+        <div className="mt-2">
+          <p>
+            Uploaded {progress.uploadedChunks}/{progress.totalChunks} chunks (
+            {progress.percentage.toFixed(2)}%)
+          </p>
+          <div className="w-full bg-gray-200 h-3 rounded">
+            <div
+              className="bg-blue-500 h-3 rounded"
+              style={{ width: `${progress.percentage}%` }}
             />
-            <span className="absolute text-gray-500 -translate-y-1/2 pointer-events-none right-3 top-1/2 dark:text-gray-400">
-              <TimeIcon className="size-6" />
-            </span>
           </div>
         </div>
-        <div>
-          <Label htmlFor="tm">Input with Payment</Label>
-          <div className="relative">
-            <Input
-              type="text"
-              placeholder="Card number"
-              className="pl-[62px]"
-            />
-            <span className="absolute left-0 top-1/2 flex h-11 w-[46px] -translate-y-1/2 items-center justify-center border-r border-gray-200 dark:border-gray-800">
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 20 20"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <circle cx="6.25" cy="10" r="5.625" fill="#E80B26" />
-                <circle cx="13.75" cy="10" r="5.625" fill="#F59D31" />
-                <path
-                  d="M10 14.1924C11.1508 13.1625 11.875 11.6657 11.875 9.99979C11.875 8.33383 11.1508 6.8371 10 5.80713C8.84918 6.8371 8.125 8.33383 8.125 9.99979C8.125 11.6657 8.84918 13.1625 10 14.1924Z"
-                  fill="#FC6020"
-                />
-              </svg>
-            </span>
-          </div>
-        </div>
-      </div>
-    </ComponentCard>
+      )}
     </div>
   );
 }

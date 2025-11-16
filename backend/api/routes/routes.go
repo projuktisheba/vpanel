@@ -57,8 +57,11 @@ func Routes(env string, db *dbrepo.DBRepository, jwt models.JWTConfig, infoLogge
 	mux.Mount("/api/v1/auth", authRoutes())
 	
 	// =========== Secure Routes ===========
-	// Mount Auth routes
+	// Mount database registry routes
 	mux.Mount("/api/v1/db", databaseRegistryRoutes())
+	
+	// Mount project handlers routes
+	mux.Mount("/api/v1/project", projectHandlerRoutes())
 
 	return mux
 }

@@ -179,6 +179,7 @@ func (h *DatabaseManagerHandler) ImportMySQLDatabase(w http.ResponseWriter, r *h
 	}
 
 	// ==================== Build response ====================
+	
 	var resp models.Response
 	resp.Error = false
 	resp.Message = "Database updated successfully"
