@@ -30,3 +30,6 @@ backend/.env
 
 # Or, to ignore all .env files anywhere
 **/.env
+
+backend/deploy-to-vps.sh
+backend/app

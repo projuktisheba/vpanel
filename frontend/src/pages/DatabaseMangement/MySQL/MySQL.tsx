@@ -23,6 +23,8 @@ import FileInput from "../../../components/form/input/FileInput";
 
 import { EyeIcon, Loader } from "lucide-react";
 import Tabs from "../../UiElements/Tabs";
+import Form from "../../../components/form/Form";
+import { Preloader } from "../../../components/preloaders/Preloader";
 interface Option {
   value: string;
   label: string;
@@ -44,7 +46,7 @@ export default function MySQL() {
 
   // Database Users
   const [users, setUsers] = useState<DBUser[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [openAlertModal, setOpenAlertModal] = useState(false);
   const [alertModalTitle, setAlertModalTitle] = useState("");
   const [alertModalMessage, setAlertModalMessage] =
@@ -394,7 +396,7 @@ export default function MySQL() {
     setNewUserCreateError("");
   };
 
-    const createNewUser = (e: FormEvent) => {
+  const createNewUser = (e: FormEvent) => {
     e.preventDefault();
 
     let hasError = false;
@@ -422,7 +424,10 @@ export default function MySQL() {
 
     (async () => {
       setIsUserCreating(true);
-      const data = await databaseManager.createMySQLUser(newUsername, newPassword);
+      const data = await databaseManager.createMySQLUser(
+        newUsername,
+        newPassword
+      );
       console.log(data);
 
       // If error, show error message on the form
@@ -498,6 +503,10 @@ export default function MySQL() {
       setImportDatabaseError(err?.message || "An unexpected error occurred.");
     }
   };
+
+  if (loading) {
+    return <Preloader/>
+  }
 
   return (
     <>
@@ -575,7 +584,10 @@ export default function MySQL() {
               >
                 {/* Database Name */}
                 <div>
-                  <Label>Database Name <span className="text-red-700 font-medium"> *</span></Label>
+                  <Label>
+                    Database Name{" "}
+                    <span className="text-red-700 font-medium"> *</span>
+                  </Label>
                   <Input
                     placeholder="Enter database name"
                     type="text"
@@ -597,7 +609,10 @@ export default function MySQL() {
 
                 {/* Database User */}
                 <div>
-                  <Label>Database User <span className="text-red-700 font-medium"> *</span></Label>
+                  <Label>
+                    Database User{" "}
+                    <span className="text-red-700 font-medium"> *</span>
+                  </Label>
                   <Select
                     options={options}
                     placeholder="Select User"
@@ -635,7 +650,16 @@ export default function MySQL() {
                     Cancel
                   </Button>
 
-                  <Button size="sm" variant="primary" disabled={!databaseName || !username || databaseNameError !== "" || userNameError !== ""} >
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    disabled={
+                      !databaseName ||
+                      !username ||
+                      databaseNameError !== "" ||
+                      userNameError !== ""
+                    }
+                  >
                     {isDBCreating ? (
                       <>
                         <Loader className="animate-spin w-4 h-4 mr-2" />
@@ -670,7 +694,10 @@ export default function MySQL() {
               {/* Form */}
               <div className="mt-6 flex flex-col gap-4">
                 <div>
-                  <Label>Upload SQL File <span className="text-red-700 font-medium"> *</span></Label>
+                  <Label>
+                    Upload SQL File{" "}
+                    <span className="text-red-700 font-medium"> *</span>
+                  </Label>
                   <FileInput accept=".sql" onChange={handleFileChange} />
                 </div>
 
@@ -783,13 +810,16 @@ export default function MySQL() {
               </div>
 
               {/* Form */}
-              <form
+              <Form
                 onSubmit={createNewUser}
                 className="mt-6 flex flex-col gap-4"
               >
                 {/* Username */}
                 <div>
-                  <Label>Username <span className="text-red-700 font-medium"> *</span></Label>
+                  <Label>
+                    Username{" "}
+                    <span className="text-red-700 font-medium"> *</span>
+                  </Label>
                   <Input
                     placeholder="Enter username"
                     type="text"
@@ -811,7 +841,10 @@ export default function MySQL() {
 
                 {/* Password */}
                 <div>
-                  <Label>Password <span className="text-red-700 font-medium"> *</span></Label>
+                  <Label>
+                    Password{" "}
+                    <span className="text-red-700 font-medium"> *</span>
+                  </Label>
                   <div className="relative">
                     <Input
                       type={showPassword ? "text" : "password"}
@@ -825,13 +858,14 @@ export default function MySQL() {
                       hint={newPasswordError}
                     />
                     <button
+                      type="button"
                       onClick={() => setShowPassword(!showPassword)}
                       className="absolute z-30 -translate-y-1/2 cursor-pointer right-4 top-1/2"
                     >
                       {showPassword ? (
-                        <EyeIcon className="fill-gray-500 dark:fill-gray-400 size-5" />
+                        <EyeIcon className="fill-white-200 dark:fill-gray-400 size-5" />
                       ) : (
-                        <EyeCloseIcon className="fill-gray-500 dark:fill-gray-400 size-5" />
+                        <EyeCloseIcon className="fill-gray-400 dark:fill-gray-400 size-5" />
                       )}
                     </button>
                   </div>
@@ -881,7 +915,7 @@ export default function MySQL() {
                     )}
                   </Button>
                 </div>
-              </form>
+              </Form>
             </div>
           </Modal>
           {/* Alerts */}
