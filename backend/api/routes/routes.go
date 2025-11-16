@@ -23,7 +23,7 @@ func Routes(env string, db *dbrepo.DBRepository, jwt models.JWTConfig, infoLogge
 
 	// --- Global middlewares ---
 	mux.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"*"},
+		AllowedOrigins:   []string{"https://vpanel.pssoft.xyz"},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token", "X-Branch-ID"},
 		AllowCredentials: false,

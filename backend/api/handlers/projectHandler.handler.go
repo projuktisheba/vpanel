@@ -30,7 +30,7 @@ func newProjectHandler(db *dbrepo.DBRepository, infoLog, errorLog *log.Logger) P
 }
 
 // UploadProjectFolder handles uploading a zipped folder in chunks,
-// saving it under projuktisheba/template/projects/<project_name>,
+// saving it under projuktisheba/projects/php/<project_name>,
 // and extracting it.
 //
 // This function expects a multipart/form-data POST request with the following fields:
@@ -44,12 +44,12 @@ func newProjectHandler(db *dbrepo.DBRepository, infoLog, errorLog *log.Logger) P
 //  1. Parse the multipart form and validate input.
 //  2. Save each received chunk to a temporary folder.
 //  3. When the last chunk is received, merge chunks into a single ZIP file.
-//  4. Extract the ZIP file to projuktisheba/template/projects/<project_name>.
+//  4. Extract the ZIP file to projuktisheba/projects/php/<project_name>.
 //  5. Remove temporary chunk files and optionally the ZIP file.
 //  6. Return a JSON response indicating success or failure.
 func (h *ProjectHandler) UploadProjectFolder(w http.ResponseWriter, r *http.Request) {
-	// Parse multipart form (limit to 50MB per chunk)
-	if err := r.ParseMultipartForm(50 << 20); err != nil {
+	// Parse multipart form (limit to 500MB per chunk)
+	if err := r.ParseMultipartForm(500 << 20); err != nil {
 		h.errorLog.Println("ERROR_01_UploadProjectFolder: failed to parse form:", err)
 		utils.BadRequest(w, fmt.Errorf("invalid form data: %w", err))
 		return
@@ -91,7 +91,7 @@ func (h *ProjectHandler) UploadProjectFolder(w http.ResponseWriter, r *http.Requ
 	// Get the user home directory
 	homeDir, _ := os.UserHomeDir()
 	// Temporary chunk folder
-	tmpDir := filepath.Join(homeDir, "projuktisheba", "template", "projects", projectName, "tmp_chunks")
+	tmpDir := filepath.Join(homeDir, "projuktisheba", "projects", "php", projectName, "tmp_chunks")
 	if err := os.MkdirAll(tmpDir, os.ModePerm); err != nil {
 		h.errorLog.Println("ERROR_02_UploadProjectFolder: failed to create tmp directory:", err)
 		utils.ServerError(w, fmt.Errorf("failed to create tmp directory: %w", err))
@@ -115,7 +115,7 @@ func (h *ProjectHandler) UploadProjectFolder(w http.ResponseWriter, r *http.Requ
 	}
 
 	// ==================== Merge & Extract when last chunk ====================
-	projectDir := filepath.Join(homeDir, "projuktisheba", "template", "projects", projectName)
+	projectDir := filepath.Join(homeDir, "projuktisheba", "projects", "php", projectName)
 	finalZipPath := filepath.Join(projectDir, filename)
 	if chunkIndex+1 == totalChunks {
 		// Ensure final project directory exists
@@ -149,7 +149,6 @@ func (h *ProjectHandler) UploadProjectFolder(w http.ResponseWriter, r *http.Requ
 	}
 
 	// Run project in production mode
-	
 
 	// ==================== Build response ====================
 	var resp models.Response
