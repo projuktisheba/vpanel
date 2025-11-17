@@ -149,14 +149,15 @@ func (h *DatabaseManagerHandler) ImportMySQLDatabase(w http.ResponseWriter, r *h
 
 	// Create path to save SQL file
 	homeDir, _ := os.UserHomeDir()
-	dirPath := filepath.Join(homeDir, "projuktisheba", "templates", "databases")
+	//initially save file to the template folder $userhomedir/projuktisheba/templates/databases/<database-server>/<database-name>
+	dirPath := filepath.Join(homeDir, "projuktisheba", "templates", "databases", "mysql")
 	if err := os.MkdirAll(dirPath, os.ModePerm); err != nil {
 		h.errorLog.Println("ERROR_02_ImportDB: failed to create directory:", err)
 		utils.ServerError(w, fmt.Errorf("failed to create directory: %w", err))
 		return
 	}
 
-	savePath := filepath.Join(dirPath, fmt.Sprintf("%s_mysql.sql", registryDB.DBName))
+	savePath := filepath.Join(dirPath, fmt.Sprintf("%s.sql", registryDB.DBName))
 	outFile, err := os.Create(savePath)
 	if err != nil {
 		h.errorLog.Println("ERROR_03_ImportDB: failed to create file:", err)
@@ -225,6 +226,14 @@ func (h *DatabaseManagerHandler) DeleteMySQLDatabase(w http.ResponseWriter, r *h
 		utils.ServerError(w, fmt.Errorf("failed to update registry: %w", err))
 		return
 	}
+	// ----------------------------------------
+	// 3 delete backup sql file
+	// ----------------------------------------
+	// Create path to save SQL file
+	homeDir, _ := os.UserHomeDir()
+	sqlPath := filepath.Join(homeDir, "projuktisheba", "templates", "databases", "mysql", fmt.Sprintf("%s.sql", registryDB.DBName))
+	// Soft delete (ignore errors)
+	_ = os.Remove(sqlPath)
 
 	// ----------------------------------------
 	// 4 Response

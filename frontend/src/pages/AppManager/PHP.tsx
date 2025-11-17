@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useEffect, useState } from "react";
 import { UploadProgress } from "../../interfaces/common.interface";
 import { projectService } from "../../services/projectManager.service";
 import { FileIcon } from "../../icons";
@@ -6,30 +6,104 @@ import ComponentCard from "../../components/common/ComponentCard";
 import PageBreadcrumb from "../../components/common/PageBreadCrumb";
 import PageMeta from "../../components/common/PageMeta";
 import Label from "../../components/form/Label";
-import Input from "../../components/form/input/InputField";
 import Button from "../../components/ui/button/Button";
-import FileInput from "../../components/form/input/FileInput";
 import { ArrowRight, Loader } from "lucide-react";
-
+import DropzoneComponent from "../../components/form/form-elements/DropZone";
+import Select from "../../components/form/Select";
+import { Domain } from "../../interfaces/domain.interface";
+import { domainManager } from "../../services/domainManager.service";
+import { databaseManager } from "../../services/databaseManager.service";
+interface Option {
+  value: string;
+  label: string;
+}
 export default function ProjectUploader() {
-  const [file, setFile] = useState<File | null>(null);
-  const [fileError, setFileError] = useState<string>("");
+  //project name(domain)
   const [projectName, setProjectName] = useState<string>("");
   const [projectNameError, setProjectNameError] = useState<string>("");
+  const [domainList, setDomainList] = useState<Option[]>([]);
+
+  //databases
+  const [databaseList, setDatabaseList] = useState<Option[]>([]);
+  const [databaseName, setDatabaseName] = useState<string>("");
+  const [databaseNameError, setDatabaseNameError] = useState<string>("");
+
+  //framework
+  const [projectFramework, setProjectFramework] = useState<string>("");
+  const [projectFrameworkError, setProjectFrameworkError] =
+    useState<string>("");
+  //file
+  const [file, setFile] = useState<File | null>(null);
+  const [fileError, setFileError] = useState<string>("");
+
+  //status
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState<UploadProgress | null>(null);
   const [uploadSuccess, setUploadSuccess] = useState<string>("");
   const [uploadError, setUploadError] = useState<string>("");
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selected = e.target.files?.[0] || null;
-    setFile(selected);
-    console.log(file);
+  const fetchDomains = async () => {
+    try {
+      const res = await domainManager.listDomains();
+
+      const domainsArray = Array.isArray(res.domains) ? res.domains : [];
+
+      // Use domainsArray, not domains
+      const list: Option[] = domainsArray.map((domain: Domain) => ({
+        value: domain.domain,
+        label: domain.domain,
+      }));
+
+      setDomainList(list);
+      console.log(list); // now it will log correctly
+    } catch (err) {
+      console.error("Failed to fetch domains:", err);
+    }
   };
 
-  const handleUpload = async () => {
+  const fetchDatabases = async () => {
+    try {
+      const res = await databaseManager.listMySQLDB();
+
+      const databaseArray = Array.isArray(res.databases) ? res.databases : [];
+
+      const list: Option[] = databaseArray.map((database: { dbName: any }) => ({
+        value: database.dbName,
+        label: database.dbName,
+      }));
+
+      setDatabaseList(list);
+      console.log(list); // now it will log correctly
+    } catch (err) {
+      console.error("Failed to fetch databases:", err);
+    }
+  };
+
+  //call backend funcs
+  useEffect(() => {
+    fetchDomains();
+    fetchDatabases();
+  }, []);
+
+  // Supported PHP Frameworks
+  const frameworks = [
+    { value: "Laravel", label: "Laravel" },
+    { value: "CodeIgniter", label: "CodeIgniter" },
+  ];
+
+  //upload handler
+  const handleProjectDeployment = async () => {
+    // Step 1: Validate form fields
     if (!projectName) {
       setProjectNameError("Please enter a valid domain name.");
+      return;
+    }
+    if (!projectFramework) {
+      setProjectFrameworkError("Please select a valid framework.");
+      return;
+    }
+    if (!databaseName) {
+      setDatabaseNameError("Please select a valid database.");
       return;
     }
     if (!file) {
@@ -44,16 +118,36 @@ export default function ProjectUploader() {
       totalChunks: 0,
       percentage: 0,
     });
+    setUploadError("");
+    setUploadSuccess("");
 
     try {
-      await projectService.uploadProjectFolder(projectName, file, (p) => {
-        setProgress(p);
-      });
+      // Step 2: Upload project folder in chunks
+      await projectService.uploadProjectFolder(
+        projectName,
+        projectFramework,
+        file,
+        (p) => setProgress(p)
+      );
 
-      setUploadSuccess("Project folder uploaded successfully!");
+      const filename = file instanceof File ? file.name : "folder.zip";
+      // Step 3: Call project creation service with form values (not the file)
+      const createResp = await projectService.createProject(
+        projectName,
+        projectFramework,
+        databaseName,
+        filename,
+      );
+
+      // Step 4: Show API response
+      if (createResp.success) {
+        setUploadSuccess(createResp.message);
+      } else {
+        setUploadError(createResp.message);
+      }
     } catch (err) {
       console.error(err);
-      setUploadError("Upload failed. Check console.");
+      setUploadError("Upload or project creation failed. Check console.");
     } finally {
       setUploading(false);
       setProgress(null);
@@ -68,50 +162,99 @@ export default function ProjectUploader() {
       />
       <PageBreadcrumb pageTitle="Build PHP Website" />
       <ComponentCard>
-        <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-2 gap-6">
-          {/* Column 1: Domain Name */}
-          <div className="w-full">
-            <Label>
-              Domain Name <span className="text-red-700 font-medium"> *</span>
-            </Label>
-            <Input
-              placeholder="Enter domain name(e.g. example.abc)"
-              type="text"
-              value={projectName}
-              onChange={(e) => setProjectName(e.target.value)}
-              className="w-full"
-            />
-            {projectNameError && (
-              <div className="text-red-600 text-sm font-medium">
-                {projectNameError}
-              </div>
-            )}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Left Column: Domain, Framework, Database */}
+          <div className="flex flex-col gap-4">
+            {/* Domain Name */}
+            <div className="w-full">
+              <Label>
+                Domain <span className="text-red-700 font-medium"> *</span>
+              </Label>
+              <Select
+                options={domainList}
+                placeholder="Select Option"
+                onChange={(value) => setProjectName(value)}
+                className="dark:bg-dark-900"
+              />
+              {projectNameError && (
+                <div className="text-red-600 text-sm font-medium">
+                  {projectNameError}
+                </div>
+              )}
+            </div>
+
+            {/* Project Framework */}
+            <div className="w-full">
+              <Label>
+                Framework <span className="text-red-700 font-medium"> *</span>
+              </Label>
+              <Select
+                options={frameworks}
+                placeholder="Select Option"
+                onChange={(value) => setProjectFramework(value)}
+                className="dark:bg-dark-900"
+              />
+              {projectFrameworkError && (
+                <div className="text-red-600 text-sm font-medium">
+                  {projectFrameworkError}
+                </div>
+              )}
+            </div>
+
+            {/* Database */}
+            <div className="w-full">
+              <Label>
+                Database <span className="text-red-700 font-medium"> *</span>
+              </Label>
+              <Select
+                options={databaseList}
+                placeholder="Select database"
+                onChange={(value) => setDatabaseName(value)}
+                className="dark:bg-dark-900"
+              />
+              {databaseNameError && (
+                <div className="text-red-600 text-sm font-medium">
+                  {databaseNameError}
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* Column 2: Project File */}
+          {/* Right Column: File Uploader */}
           <div className="w-full">
-            <Label>
-              Project File <span className="text-red-700 font-medium"> *</span>
-            </Label>
-            <FileInput
-              accept=".zip"
-              onChange={handleFileSelect}
-              className="w-full"
+            <DropzoneComponent
+              onFileSelect={(f) => {
+                if (f instanceof File) {
+                  setFile(f);
+                  setFileError("");
+                }
+
+                if (f && f.name.endsWith(".zip") === false) {
+                  setFile(null);
+                  setFileError("Only .zip files are allowed.");
+                }
+              }}
             />
             {fileError && (
-              <div className="text-red-600 text-sm font-medium">
+              <div className="text-red-600 text-sm font-medium mt-2">
                 {fileError}
               </div>
             )}
           </div>
 
-          {/* Upload button + progress bar spans both columns */}
-          <div className="col-span-1 sm:col-span-1 md:col-span-2 lg:col-span-2 xl:col-span-2 flex flex-col gap-4 mt-2">
+          {/* Full Width: Upload Button + Progress */}
+          <div className="col-span-1 md:col-span-2 flex flex-col gap-4 mt-2">
             <Button
-              disabled={uploading || !file || !projectName}
+              disabled={
+                !projectName ||
+                !projectFramework ||
+                !databaseName ||
+                !file ||
+                uploading
+              }
               size="sm"
               variant="primary"
-              onClick={() => handleUpload()}
+              onClick={() => handleProjectDeployment()}
               endIcon={<ArrowRight />}
             >
               {uploading ? (
@@ -124,7 +267,6 @@ export default function ProjectUploader() {
               )}
             </Button>
 
-            {/* Uploading progress bar */}
             {uploading && progress && (
               <div className="m-0">
                 <div className="mb-2 flex justify-between items-center">
@@ -153,7 +295,6 @@ export default function ProjectUploader() {
               </div>
             )}
 
-            {/* Final Status */}
             {uploadError && (
               <div className="text-center text-red-600 text-sm font-medium">
                 {uploadError}

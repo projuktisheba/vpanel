@@ -1,31 +1,47 @@
 package handlers
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"regexp"
 	"strings"
 )
 
-func appNameGenerator(domain string)string{
+type ComposerJSON struct {
+	Require map[string]string `json:"require"`
+}
+
+func DeployPHPProject(appRootDirectory, appFramework, domain string) error {
+	switch appFramework {
+	case "Laravel":
+		return deployLaravelHandler(appRootDirectory, appFramework, domain)
+	case "CodeIgniter":
+		return fmt.Errorf("Application framework %s does not supported", appFramework)
+	case "Symfony":
+		return fmt.Errorf("Application framework %s is not supported", appFramework)
+	}
+	return nil
+}
+
+func appNameGenerator(domain string) string {
 	parts := strings.Split(domain, ".")
 	return strings.Join(parts, "_")
 }
 
-// DeployLaravelHandler deploys a Laravel app to a custom folder
-func DeployLaravelHandler(appFramework, domain, phpVersion, dbName, dbUser, dbPass string) error {
-
+// deployLaravelHandler deploys or updates a Laravel project at appRootDirectory
+func deployLaravelHandler(appRootDirectory, appFramework, domain string) error {
 	fmt.Println("Starting Laravel deployment...")
-	// Generating appName
-	appName := appNameGenerator(domain)
-	// Generating appDir
-	// home, _:= 
-	appDir := appNameGenerator(appFramework)
+
+	appName := appNameGenerator(domain) // your app name generator
+
 	// ---------------------------------------------------------
 	// Helper to run commands through SUDO automatically
 	// ---------------------------------------------------------
 	run := func(cmd string, args ...string) error {
-		full := append([]string{cmd}, args...) // prefix with real command
+		full := append([]string{cmd}, args...)
 		fmt.Printf("Running: sudo %s %s\n", cmd, strings.Join(args, " "))
 		c := exec.Command("sudo", full...)
 		c.Stdout = os.Stdout
@@ -34,41 +50,28 @@ func DeployLaravelHandler(appFramework, domain, phpVersion, dbName, dbUser, dbPa
 	}
 
 	// ---------------------------------------------------------
-	// 1. Update system
+	// 1. Update system packages (optional, safe)
 	// ---------------------------------------------------------
-	if err := run("apt", "update"); err != nil {
-		return err
-	}
-	if err := run("apt", "upgrade", "-y"); err != nil {
-		return err
-	}
+	run("apt", "update")
+	run("apt", "upgrade", "-y")
 
 	// ---------------------------------------------------------
 	// 2. Install required packages
 	// ---------------------------------------------------------
-	pkgs := []string{"nginx", "mysql-server", "unzip", "git", "curl", "software-properties-common"}
-	args := append([]string{"install", "-y"}, pkgs...)
-	if err := run("apt", args...); err != nil {
-		return err
-	}
+	pkgs := []string{"nginx", "mysql-server", "unzip", "curl", "software-properties-common"}
+	run("apt", append([]string{"install", "-y"}, pkgs...)...)
 
 	// ---------------------------------------------------------
 	// 3. Add PHP PPA + install PHP packages
 	// ---------------------------------------------------------
-	if err := run("add-apt-repository", "ppa:ondrej/php", "-y"); err != nil {
-		return err
-	}
-	if err := run("apt", "update"); err != nil {
-		return err
-	}
+	run("add-apt-repository", "ppa:ondrej/php", "-y")
+	run("apt", "update")
 
-	// Auto detect PHP version
-	detectedPHP, err := DetectPHPVersion()
+	phpVersionRaw, err := RequiredPHPVersion(appRootDirectory)
 	if err != nil {
 		return fmt.Errorf("cannot detect PHP version: %v", err)
 	}
-	phpVersion = detectedPHP
-
+	phpVersion := parsePHPVersion(phpVersionRaw) // ensure format like "8.1"
 	fmt.Println("Detected PHP version:", phpVersion)
 
 	phpPkgs := []string{
@@ -85,295 +88,213 @@ func DeployLaravelHandler(appFramework, domain, phpVersion, dbName, dbUser, dbPa
 		"php" + phpVersion + "-mysql",
 		"php" + phpVersion + "-soap",
 	}
-
-	args = append([]string{"install", "-y"}, phpPkgs...)
-	if err := run("apt", args...); err != nil {
-		return err
-	}
-
-	// ---------------------------------------------------------
-	// 4. Install Composer
-	// ---------------------------------------------------------
-	if err := run("php", "-r", "copy('https://getcomposer.org/installer','composer-setup.php');"); err != nil {
-		return err
-	}
-	if err := run("php", "composer-setup.php", "--install-dir=/usr/local/bin", "--filename=composer"); err != nil {
-		return err
-	}
-	if err := run("php", "-r", "unlink('composer-setup.php');"); err != nil {
-		return err
-	}
-
-	// ---------------------------------------------------------
-	// 5. Permissions
-	// ---------------------------------------------------------
-	if err := run("chown", "-R", "www-data:www-data", appDir); err != nil {
-		return err
-	}
-	if err := run("find", appDir, "-type", "f", "-exec", "chmod", "644", "{}", ";"); err != nil {
-		return err
-	}
-	if err := run("find", appDir, "-type", "d", "-exec", "chmod", "755", "{}", ";"); err != nil {
-		return err
-	}
-	if err := run("chmod", "-R", "775", appDir+"/storage"); err != nil {
-		return err
-	}
-	if err := run("chmod", "-R", "775", appDir+"/bootstrap/cache"); err != nil {
-		return err
-	}
-
-	// ---------------------------------------------------------
-	// 6. Composer install
-	// ---------------------------------------------------------
-	if err := run("composer", "install", "--optimize-autoloader", "--no-dev", "--working-dir="+appDir); err != nil {
-		return err
-	}
-
-	// ---------------------------------------------------------
-	// 7. Run Laravel Artisan Commands
-	// ---------------------------------------------------------
-	run("php", appDir+"/artisan", "key:generate")
-	run("php", appDir+"/artisan", "migrate", "--force")
-	run("php", appDir+"/artisan", "db:seed", "--force")
-	run("php", appDir+"/artisan", "storage:link")
-	run("php", appDir+"/artisan", "config:cache")
-	run("php", appDir+"/artisan", "route:cache")
-	run("php", appDir+"/artisan", "view:cache")
-
-	// ---------------------------------------------------------
-	// 8. Nginx Config
-	// ---------------------------------------------------------
-	nginxConfig := fmt.Sprintf("/etc/nginx/sites-available/%s", appName)
-
-	configContent := fmt.Sprintf(`
-		server {
-			listen 80;
-			server_name %s www.%s;
-
-			root %s/public;
-			index index.php index.html;
-
-			add_header X-Frame-Options "SAMEORIGIN";
-			add_header X-Content-Type-Options "nosniff";
-
-			location / {
-				try_files $uri $uri/ /index.php?$query_string;
-			}
-
-			location ~ \.php$ {
-				include snippets/fastcgi-php.conf;
-				fastcgi_pass unix:/run/php/php%s-fpm.sock;
-				fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
-				include fastcgi_params;
-			}
-
-			location ~ /\.ht {
-				deny all;
-			}
-		}
-		`, domain, domain, appDir, phpVersion)
-
-	if err := os.WriteFile(nginxConfig, []byte(configContent), 0644); err != nil {
-		return err
-	}
-
-	if err := run("ln", "-sf", nginxConfig, "/etc/nginx/sites-enabled/"); err != nil {
-		return err
-	}
-	if err := run("nginx", "-t"); err != nil {
-		return err
-	}
-	if err := run("systemctl", "reload", "nginx"); err != nil {
-		return err
-	}
-
-	// ---------------------------------------------------------
-	// 9. Install Certbot + Get SSL Certificate
-	// ---------------------------------------------------------
-	if err := run("apt", "install", "-y", "certbot", "python3-certbot-nginx"); err != nil {
-		return err
-	}
-
-	if err := run("certbot", "--nginx",
-		"-d", domain,
-		"-d", "www."+domain,
-		"--non-interactive",
-		"--agree-tos",
-		"-m", "admin@"+domain,
-	); err != nil {
-		return err
-	}
-
-	// ---------------------------------------------------------
-	// 10. Enable Auto-Renew Timer
-	// ---------------------------------------------------------
-	if err := run("systemctl", "enable", "certbot.timer"); err != nil {
-		return err
-	}
-	if err := run("systemctl", "start", "certbot.timer"); err != nil {
-		return err
-	}
-
-	fmt.Printf("\nDeployment completed for %s at %s!\n", appName, appDir)
-	return nil
-}
-
-// DeployCodeIgniterHandler deploys a CodeIgniter project to a custom folder with SSL
-func DeployCodeIgniterHandler(appName, appDir, domain, phpVersion, gitRepo, gitBranch string) error {
-	fmt.Println("Starting CodeIgniter deployment...")
-
-	// Helper to run commands
-	run := func(cmd string, args ...string) error {
-		full := append([]string{cmd}, args...)
-		fmt.Printf("Running: sudo %s %s\n", cmd, strings.Join(args, " "))
-		c := exec.Command("sudo", full...)
-		c.Stdout = os.Stdout
-		c.Stderr = os.Stderr
-		return c.Run()
-	}
-
-	// 1. System update
-	run("apt", "update")
-	run("apt", "upgrade", "-y")
-
-	// 2. Install packages
-	pkgs := []string{"nginx", "mysql-server", "unzip", "git", "curl", "software-properties-common"}
-	run("apt", append([]string{"install", "-y"}, pkgs...)...)
-
-	// 3. PHP installation
-	run("add-apt-repository", "ppa:ondrej/php", "-y")
-	run("apt", "update")
-	phpPkgs := []string{
-		fmt.Sprintf("php%s", phpVersion),
-		fmt.Sprintf("php%s-fpm", phpVersion),
-		fmt.Sprintf("php%s-cli", phpVersion),
-		fmt.Sprintf("php%s-mbstring", phpVersion),
-		fmt.Sprintf("php%s-xml", phpVersion),
-		fmt.Sprintf("php%s-bcmath", phpVersion),
-		fmt.Sprintf("php%s-curl", phpVersion),
-		fmt.Sprintf("php%s-zip", phpVersion),
-		fmt.Sprintf("php%s-gd", phpVersion),
-		fmt.Sprintf("php%s-intl", phpVersion),
-		fmt.Sprintf("php%s-mysql", phpVersion),
-	}
 	run("apt", append([]string{"install", "-y"}, phpPkgs...)...)
 
-	// 4. Composer install (optional)
-	run("php", "-r", "copy('https://getcomposer.org/installer','composer-setup.php');")
-	run("php", "composer-setup.php", "--install-dir=/usr/local/bin", "--filename=composer")
-	run("php", "-r", "unlink('composer-setup.php');")
-
-	// 5. Clone project
-	if _, err := os.Stat(appDir); os.IsNotExist(err) {
-		run("git", "clone", "-b", gitBranch, gitRepo, appDir)
-	} else {
-		run("git", "-C", appDir, "fetch", "--all")
-		run("git", "-C", appDir, "checkout", gitBranch)
-		run("git", "-C", appDir, "pull", "origin", gitBranch)
+	// ---------------------------------------------------------
+	// 4. Install Composer if not exists
+	// ---------------------------------------------------------
+	if _, err := exec.LookPath("composer"); err != nil {
+		run("php", "-r", "copy('https://getcomposer.org/installer','composer-setup.php');")
+		run("php", "composer-setup.php", "--install-dir=/usr/local/bin", "--filename=composer")
+		run("php", "-r", "unlink('composer-setup.php');")
 	}
 
-	// 6. Set permissions (CodeIgniter writable folder)
-	run("chown", "-R", "www-data:www-data", appDir)
-	run("find", appDir, "-type", "f", "-exec", "chmod", "644", "{}", ";")
-	run("find", appDir, "-type", "d", "-exec", "chmod", "755", "{}", ";")
-	run("chmod", "-R", "775", fmt.Sprintf("%s/writable", appDir))
+	// ---------------------------------------------------------
+	// 5. Ensure appRootDirectory exists
+	// ---------------------------------------------------------
+	if err := os.MkdirAll(appRootDirectory, os.ModePerm); err != nil {
+		return fmt.Errorf("failed to create app directory: %v", err)
+	}
 
-	// 7. Nginx configuration
+	// ---------------------------------------------------------
+	// 6. Set permissions only for required dirs
+	// ---------------------------------------------------------
+	run("chown", "-R", "www-data:www-data", appRootDirectory+"/storage")
+	run("chown", "-R", "www-data:www-data", appRootDirectory+"/bootstrap/cache")
+	run("chmod", "-R", "775", appRootDirectory+"/storage")
+	run("chmod", "-R", "775", appRootDirectory+"/bootstrap/cache")
+
+	// ---------------------------------------------------------
+	// 7. Composer install if vendor missing
+	// ---------------------------------------------------------
+	if _, err := os.Stat(filepath.Join(appRootDirectory, "vendor")); os.IsNotExist(err) {
+		if err := run("composer", "install", "--optimize-autoloader", "--no-dev", "--working-dir="+appRootDirectory); err != nil {
+			return fmt.Errorf("composer install failed: %v", err)
+		}
+	}
+
+	// ---------------------------------------------------------
+	// 8. Artisan commands (idempotent)
+	// ---------------------------------------------------------
+	envFile := filepath.Join(appRootDirectory, ".env")
+	if _, err := os.Stat(envFile); os.IsNotExist(err) {
+		// copy .env.example if .env missing
+		exampleEnv := filepath.Join(appRootDirectory, ".env.example")
+		if _, err := os.Stat(exampleEnv); err == nil {
+			run("cp", exampleEnv, envFile)
+		}
+	}
+
+	// key:generate only if APP_KEY is empty
+	run("php", filepath.Join(appRootDirectory, "artisan"), "key:generate")
+	run("php", filepath.Join(appRootDirectory, "artisan"), "migrate", "--force")
+	run("php", filepath.Join(appRootDirectory, "artisan"), "db:seed", "--force")
+	run("php", filepath.Join(appRootDirectory, "artisan"), "storage:link")
+	run("php", filepath.Join(appRootDirectory, "artisan"), "config:cache")
+	run("php", filepath.Join(appRootDirectory, "artisan"), "route:cache")
+	run("php", filepath.Join(appRootDirectory, "artisan"), "view:cache")
+
+	// ---------------------------------------------------------
+	// 9. Nginx config (back up if exists)
+	// ---------------------------------------------------------
 	nginxConfig := fmt.Sprintf("/etc/nginx/sites-available/%s", appName)
+	if _, err := os.Stat(nginxConfig); err == nil {
+		run("mv", nginxConfig, nginxConfig+".bak")
+	}
+
 	configContent := fmt.Sprintf(`
 server {
-    listen 80;
-    server_name %s www.%s;
+	listen 80;
+	server_name %s www.%s;
 
-    root %s/public;
-    index index.php index.html;
+	root %s/public;
+	index index.php index.html;
 
-    location / {
-        try_files $uri $uri/ /index.php?$query_string;
-    }
+	add_header X-Frame-Options "SAMEORIGIN";
+	add_header X-Content-Type-Options "nosniff";
 
-    location ~ \.php$ {
-        include snippets/fastcgi-php.conf;
-        fastcgi_pass unix:/run/php/php%s-fpm.sock;
-        fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
-        include fastcgi_params;
-    }
+	location / {
+		try_files $uri $uri/ /index.php?$query_string;
+	}
 
-    location ~ /\.ht {
-        deny all;
-    }
+	location ~ \.php$ {
+		include snippets/fastcgi-php.conf;
+		fastcgi_pass unix:/run/php/php%s-fpm.sock;
+		fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
+		include fastcgi_params;
+	}
+
+	location ~ /\.ht {
+		deny all;
+	}
 }
-`, domain, domain, appDir, phpVersion)
-	os.WriteFile(nginxConfig, []byte(configContent), 0644)
+`, domain, domain, appRootDirectory, phpVersion)
+
+	// Write using sudo tee
+	cmd := exec.Command("sudo", "tee", nginxConfig)
+	cmd.Stdin = strings.NewReader(configContent)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to write nginx config: %w", err)
+	}
 	run("ln", "-sf", nginxConfig, "/etc/nginx/sites-enabled/")
 	run("nginx", "-t")
 	run("systemctl", "reload", "nginx")
 
-	// 8. SSL with Certbot
+	// ---------------------------------------------------------
+	// 10. Certbot SSL
+	// ---------------------------------------------------------
 	run("apt", "install", "-y", "certbot", "python3-certbot-nginx")
-	run("certbot", "--nginx", "-d", domain, "-d", "www."+domain, "--non-interactive", "--agree-tos", "-m", "admin@"+domain)
+	run("certbot", "--nginx", "-d", domain, "-d", "www."+domain,
+		"--non-interactive", "--agree-tos", "-m", "admin@"+domain)
 	run("systemctl", "enable", "certbot.timer")
 	run("systemctl", "start", "certbot.timer")
 
-	fmt.Printf("CodeIgniter deployment completed at %s!\n", appDir)
+	fmt.Printf("\nDeployment completed for %s at %s!\n", appName, appRootDirectory)
 	return nil
 }
 
-// DetectPHPVersion automatically detects installed PHP version.
-func DetectPHPVersion() (string, error) {
-	// 1. Try "php -v"
-	out, err := exec.Command("php", "-v").Output()
-	if err == nil {
-		version := parsePHPVersion(string(out))
-		if version != "" {
-			return version, nil
+func RequiredPHPVersion(projectDir string) (string, error) {
+	composerPath := filepath.Join(projectDir, "composer.json")
+
+	// 1. Check composer.json
+	if _, err := os.Stat(composerPath); err == nil {
+		data, err := os.ReadFile(composerPath)
+		if err != nil {
+			return "", fmt.Errorf("failed to read composer.json: %w", err)
+		}
+
+		var composer ComposerJSON
+		if err := json.Unmarshal(data, &composer); err != nil {
+			return "", fmt.Errorf("invalid composer.json: %w", err)
+		}
+
+		// Extract PHP version
+		if phpVersion, ok := composer.Require["php"]; ok {
+			return phpVersion, nil
 		}
 	}
 
-	// 2. Try update-alternatives list
-	out, err = exec.Command("update-alternatives", "--list", "php").Output()
-	if err == nil {
-		lines := strings.Split(string(out), "\n")
-		for _, line := range lines {
-			if strings.Contains(line, "php") {
-				v := extractVersionFromPath(line)
-				if v != "" {
-					return v, nil
-				}
-			}
+	// 2. Search WordPress `$required_php_version`
+	wpLoadPath := filepath.Join(projectDir, "wp-includes", "load.php")
+	if _, err := os.Stat(wpLoadPath); err == nil {
+		data, _ := os.ReadFile(wpLoadPath)
+		re := regexp.MustCompile(`\$required_php_version\s*=\s*'([^']+)'`)
+		match := re.FindStringSubmatch(string(data))
+		if len(match) > 1 {
+			return match[1], nil
 		}
 	}
 
-	// 3. Try scanning PHP-FPM services
-	out, err = exec.Command("bash", "-c", "ls /run/php/").Output()
-	if err == nil {
-		files := strings.Split(string(out), "\n")
-		for _, f := range files {
-			if strings.Contains(f, "php") && strings.Contains(f, "fpm.sock") {
-				v := extractVersionFromPath(f)
-				if v != "" {
-					return v, nil
-				}
-			}
+	// 3. Search CodeIgniter VERSION
+	ciConst := filepath.Join(projectDir, "application", "config", "constants.php")
+	if _, err := os.Stat(ciConst); err == nil {
+		data, _ := os.ReadFile(ciConst)
+		re := regexp.MustCompile(`CI_VERSION',\s*'([^']+)'`)
+		match := re.FindStringSubmatch(string(data))
+		if len(match) > 1 {
+			ciVersion := match[1]
+			return mapCItoPHP(ciVersion), nil
 		}
 	}
 
+	// Nothing found
 	return "", fmt.Errorf("could not detect PHP version")
 }
 
-// parsePHPVersion extracts PHP version from "php -v" output
+func mapCItoPHP(ciVersion string) string {
+	// Basic mapping
+	switch {
+	case ciVersion >= "4.0.0":
+		return ">=7.4"
+	case ciVersion >= "3.1.0":
+		return ">=5.6"
+	default:
+		return ">=5.2"
+	}
+}
+
+// parsePHPVersion extracts PHP version (major.minor) from a string.
+// It works for composer constraints like "^8.1", "8.1.*" or php -v output like "PHP 8.3.2".
 func parsePHPVersion(s string) string {
-	// Example: "PHP 8.3.2 ..."
-	parts := strings.Split(s, " ")
-	for _, p := range parts {
-		if strings.Count(p, ".") >= 1 && strings.HasPrefix(p, "8.") {
-			return p[:3] // "8.3"
-		}
-		if strings.Count(p, ".") >= 1 && strings.HasPrefix(p, "7.") {
-			return p[:3]
+	// Remove any leading caret "^" or tilde "~"
+	s = strings.TrimPrefix(s, "^")
+	s = strings.TrimPrefix(s, "~")
+
+	// Find first substring that looks like major.minor, e.g., "8.1" or "7.4"
+	parts := strings.Fields(s)
+	for _, part := range parts {
+		// Remove any trailing ".*" or similar
+		part = strings.TrimSuffix(part, ".*")
+
+		// Check if it matches 7.x or 8.x pattern
+		if len(part) >= 3 && (strings.HasPrefix(part, "7.") || strings.HasPrefix(part, "8.")) {
+			pv := strings.Split(part, ".")
+			if len(pv) >= 2 {
+				return pv[0] + "." + pv[1] // major.minor
+			}
+			return part
 		}
 	}
+
+	// fallback: check for "7.x" or "8.x" anywhere in string
+	for _, c := range strings.Split(s, ".") {
+		if c == "7" || c == "8" {
+			return c + ".0"
+		}
+	}
+
 	return ""
 }
 

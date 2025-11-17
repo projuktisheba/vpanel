@@ -5,9 +5,9 @@ import { API_BASE_URL } from "../config/apiConfig";
 // Create an Axios instance
 const axiosInstance = axios.create({
   baseURL: API_BASE_URL,
-  headers: {
-    "Content-Type": "application/json",
-  },
+  // headers: {
+  //   "Content-Type": "application/json",
+  // },
 });
 
 // Request interceptor to attach token from localStorage

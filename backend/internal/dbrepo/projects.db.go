@@ -11,7 +11,7 @@ import (
 	"github.com/projuktisheba/vpanel/backend/internal/models"
 )
 
-// ============================== User Repository ==============================
+// ============================== Project Repository ==============================
 type ProjectRepo struct {
 	db *pgxpool.Pool
 }
@@ -19,51 +19,72 @@ type ProjectRepo struct {
 func NewProjectRepo(db *pgxpool.Pool) *ProjectRepo {
 	return &ProjectRepo{db: db}
 }
-
+// CreateProject inserts a new project
 func (r *ProjectRepo) CreateProject(ctx context.Context, p *models.Project) error {
 	query := `
         INSERT INTO projects
-        (project_name, domain_id, status, project_framework, root_directory, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        (project_name, domain_name, db_name, project_framework, template_path, project_directory, status, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         RETURNING id, created_at, updated_at
     `
 	row := r.db.QueryRow(ctx, query,
-		p.ProjectName, p.DomainID, p.Status, p.ProjectFramework, p.RootDirectory,
+		p.ProjectName,
+		p.DomainName,
+		p.DBName,
+		p.ProjectFramework,
+		p.TemplatePath,
+		p.ProjectDirectory,
+		p.Status,
 	)
 
 	if err := row.Scan(&p.ID, &p.CreatedAt, &p.UpdatedAt); err != nil {
 		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == "23503" { // foreign key violation
-			return errors.New("invalid domain_id")
+
+		// Foreign key violation for domain_name
+		if errors.As(err, &pgErr) && pgErr.Code == "23503" {
+			return errors.New("invalid domain_name: domain does not exist")
 		}
 		return err
 	}
-
 	return nil
 }
 
+// UpdateProject updates a project by ID
 func (r *ProjectRepo) UpdateProject(ctx context.Context, p *models.Project) error {
 	query := `
         UPDATE projects
         SET project_name = $1,
-            domain_id = $2,
-            status = $3,
+            domain_name = $2,
+            db_name = $3,
             project_framework = $4,
-            root_directory = $5,
+            template_path = $5,
+            project_directory = $6,
+            status = $7,
             updated_at = CURRENT_TIMESTAMP
-        WHERE id = $6
+        WHERE id = $8
         RETURNING updated_at
     `
 
 	row := r.db.QueryRow(ctx, query,
-		p.ProjectName, p.DomainID, p.Status, p.ProjectFramework, p.RootDirectory, p.ID,
+		p.ProjectName,
+		p.DomainName,
+		p.DBName,
+		p.ProjectFramework,
+        p.TemplatePath,
+        p.ProjectDirectory,
+		p.Status,
+		p.ID,
 	)
 
 	if err := row.Scan(&p.UpdatedAt); err != nil {
 		var pgErr *pgconn.PgError
+
+		// Invalid domain name
 		if errors.As(err, &pgErr) && pgErr.Code == "23503" {
-			return errors.New("invalid domain_id")
+			return errors.New("invalid domain_name")
 		}
+
+		// No project found
 		if err == pgx.ErrNoRows {
 			return errors.New("project not found")
 		}
@@ -73,6 +94,7 @@ func (r *ProjectRepo) UpdateProject(ctx context.Context, p *models.Project) erro
 	return nil
 }
 
+// UpdateProjectStatus updates only the status of a project
 func (r *ProjectRepo) UpdateProjectStatus(ctx context.Context, id int64, status string) (time.Time, error) {
 	query := `
         UPDATE projects
@@ -83,6 +105,7 @@ func (r *ProjectRepo) UpdateProjectStatus(ctx context.Context, id int64, status 
 
 	var updatedAt time.Time
 	row := r.db.QueryRow(ctx, query, status, id)
+
 	if err := row.Scan(&updatedAt); err != nil {
 		if err == pgx.ErrNoRows {
 			return time.Time{}, errors.New("project not found")
@@ -93,46 +116,78 @@ func (r *ProjectRepo) UpdateProjectStatus(ctx context.Context, id int64, status 
 	return updatedAt, nil
 }
 
+// DeleteProject deletes a project by ID
 func (r *ProjectRepo) DeleteProject(ctx context.Context, id int64) error {
-    cmd, err := r.db.Exec(ctx, `DELETE FROM projects WHERE id = $1`, id)
-    if err != nil {
-        return err
-    }
-    if cmd.RowsAffected() == 0 {
-        return errors.New("project not found")
-    }
-    return nil
+	cmd, err := r.db.Exec(ctx, `DELETE FROM projects WHERE id = $1`, id)
+	if err != nil {
+		return err
+	}
+	if cmd.RowsAffected() == 0 {
+		return errors.New("project not found")
+	}
+	return nil
 }
 
+// ListProjects returns all projects
 func (r *ProjectRepo) ListProjects(ctx context.Context) ([]*models.Project, error) {
-    rows, err := r.db.Query(ctx, `
-        SELECT id, project_name, domain_id, status, project_framework, root_directory, created_at, updated_at
+	rows, err := r.db.Query(ctx, `
+        SELECT 
+            id, 
+            project_name, 
+            domain_name, 
+            db_name, 
+            project_framework,
+            template_path,
+            project_directory,
+            status, 
+            created_at, 
+            updated_at
         FROM projects
         ORDER BY id DESC
     `)
-    if err != nil {
-        return nil, err
-    }
-    defer rows.Close()
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
 
-    var projects []*models.Project
-    for rows.Next() {
-        var p models.Project
-        if err := rows.Scan(
-            &p.ID, &p.ProjectName, &p.DomainID, &p.Status,
-            &p.ProjectFramework, &p.RootDirectory, &p.CreatedAt, &p.UpdatedAt,
-        ); err != nil {
-            return nil, err
-        }
-        projects = append(projects, &p)
-    }
+	var projects []*models.Project
 
-    return projects, nil
+	for rows.Next() {
+		var p models.Project
+		if err := rows.Scan(
+			&p.ID,
+			&p.ProjectName,
+			&p.DomainName,
+			&p.DBName,
+			&p.ProjectFramework,
+			&p.TemplatePath,
+			&p.ProjectDirectory,
+			&p.Status,
+			&p.CreatedAt,
+			&p.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		projects = append(projects, &p)
+	}
+
+	return projects, nil
 }
 
+// ListProjectsByFramework returns projects filtered by framework
 func (r *ProjectRepo) ListProjectsByFramework(ctx context.Context, framework string) ([]*models.Project, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT id, project_name, domain_id, database_id, status, project_framework, root_directory, created_at, updated_at
+		SELECT 
+			id, 
+			project_name, 
+			domain_name, 
+			db_name, 
+			project_framework,
+			template_path,
+			project_directory,
+			status, 
+			created_at, 
+			updated_at
 		FROM projects
 		WHERE project_framework = $1
 		ORDER BY id DESC
@@ -143,17 +198,27 @@ func (r *ProjectRepo) ListProjectsByFramework(ctx context.Context, framework str
 	defer rows.Close()
 
 	var projects []*models.Project
+
 	for rows.Next() {
 		var p models.Project
+
 		if err := rows.Scan(
-			&p.ID, &p.ProjectName, &p.DomainID, &p.DatabaseID, &p.Status,
-			&p.ProjectFramework, &p.RootDirectory, &p.CreatedAt, &p.UpdatedAt,
+			&p.ID,
+			&p.ProjectName,
+			&p.DomainName,
+			&p.DBName,
+			&p.ProjectFramework,
+			&p.TemplatePath,
+			&p.ProjectDirectory,
+			&p.Status,
+			&p.CreatedAt,
+			&p.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
+
 		projects = append(projects, &p)
 	}
 
 	return projects, nil
 }
-

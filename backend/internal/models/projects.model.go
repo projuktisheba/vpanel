@@ -5,13 +5,14 @@ import "time"
 type Project struct {
 	ID               int64     `json:"id"`
 	ProjectName      string    `json:"projectName"`
-	DomainID         int64     `json:"domainId"`
-	DatabaseID       int64     `json:"databaseId"`
-	Status           string    `json:"status"`           // live, inactive, development
-	ProjectFramework string    `json:"projectFramework"` // Laravel, Angular, etc.
-	RootDirectory    string    `json:"rootDirectory"`
+	DomainName       string    `json:"domainName"`
+	DBName           string    `json:"dbName"`
+	ProjectFramework string    `json:"projectFramework"`
+	TemplatePath     string    `json:"templatePath"`
+	ProjectDirectory string    `json:"projectDirectory"`
+	Status           string    `json:"status"`
 	CreatedAt        time.Time `json:"createdAt"`
 	UpdatedAt        time.Time `json:"updatedAt"`
-	Domain           *Domain   `json:"domain"`
-	Database         *Database `json:"database"`
+	DomainInfo       *Domain   `json:"domainInfo"`
+	DatabaseInfo     *Database `json:"databaseInfo"`
 }

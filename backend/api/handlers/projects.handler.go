@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/projuktisheba/vpanel/backend/internal/dbrepo"
@@ -43,10 +44,9 @@ func (h *ProjectHandler) CreateProject(w http.ResponseWriter, r *http.Request) {
 	// ======== Trim & Validate ========
 	req.ProjectName = strings.TrimSpace(req.ProjectName)
 	req.ProjectFramework = strings.TrimSpace(req.ProjectFramework)
-	req.RootDirectory = strings.TrimSpace(req.RootDirectory)
 
-	if req.ProjectName == "" || req.ProjectFramework == "" || req.RootDirectory == "" {
-		utils.BadRequest(w, errors.New("project_name, project_framework, and root_directory are required"))
+	if req.ProjectName == "" || req.ProjectFramework == "" || req.DomainName == "" {
+		utils.BadRequest(w, errors.New("projectName, projectFramework and domainName are required"))
 		return
 	}
 
@@ -54,9 +54,38 @@ func (h *ProjectHandler) CreateProject(w http.ResponseWriter, r *http.Request) {
 		req.Status = "inactive"
 	}
 
+	//get file extension
+	originalFilename := strings.TrimSpace(r.URL.Query().Get("filename"))
+	extension := filepath.Ext(originalFilename)
+	if extension == "" {
+		extension = ".zip" // assume zipped project by default
+	}
+
+	templatePath := utils.GetTemplatePath(req.ProjectFramework, req.ProjectName, extension)
+	projectDir := utils.GetProjectDirectory(req.DomainName)
+
+	//update object
+	req.TemplatePath = templatePath
+	req.ProjectDirectory = projectDir
+
 	// ======== Create Project ========
+	//step:1 extract the zip file
+	if err := extractZip(templatePath, projectDir); err != nil {
+		h.errorLog.Println("ERROR_02_CreateProject: failed to extract zip files:", err)
+		utils.ServerError(w, fmt.Errorf("failed to create project: %w", err))
+		return
+	}
+
+	// step:2 Insert a record to the projects table
 	if err := h.DB.ProjectRepo.CreateProject(r.Context(), &req); err != nil {
-		h.errorLog.Println("ERROR_02_CreateProject: failed to create project:", err)
+		h.errorLog.Println("ERROR_03_CreateProject: failed to create project:", err)
+		utils.ServerError(w, fmt.Errorf("failed to create project: %w", err))
+		return
+	}
+
+	// step:3 Call PHP builder function
+	if err := DeployPHPProject(req.ProjectDirectory, req.ProjectFramework, req.DomainName); err != nil {
+		h.errorLog.Println("ERROR_03_CreateProject: failed to create project:", err)
 		utils.ServerError(w, fmt.Errorf("failed to create project: %w", err))
 		return
 	}
@@ -87,15 +116,19 @@ func (h *ProjectHandler) UpdateProject(w http.ResponseWriter, r *http.Request) {
 	// Trim spaces
 	req.ProjectName = strings.TrimSpace(req.ProjectName)
 	req.ProjectFramework = strings.TrimSpace(req.ProjectFramework)
-	req.RootDirectory = strings.TrimSpace(req.RootDirectory)
 
-	if req.ProjectName == "" || req.ProjectFramework == "" || req.RootDirectory == "" {
-		utils.BadRequest(w, errors.New("project_name, project_framework, and root_directory are required"))
+	if req.ProjectName == "" {
+		utils.BadRequest(w, errors.New("projectName is required"))
+		return
+	}
+
+	if req.ProjectFramework == "" {
+		utils.BadRequest(w, errors.New("projectFramework is required"))
 		return
 	}
 
 	if req.Status == "" {
-		req.Status = "inactive"
+		req.Status = "active"
 	}
 
 	if err := h.DB.ProjectRepo.UpdateProject(r.Context(), &req); err != nil {
@@ -205,8 +238,8 @@ func (h *ProjectHandler) ListProjects(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := struct {
-		Error    bool             `json:"error"`
-		Message  string           `json:"message"`
+		Error    bool              `json:"error"`
+		Message  string            `json:"message"`
 		Projects []*models.Project `json:"projects"`
 	}{
 		Error:    false,
@@ -216,7 +249,6 @@ func (h *ProjectHandler) ListProjects(w http.ResponseWriter, r *http.Request) {
 
 	utils.WriteJSON(w, http.StatusOK, resp)
 }
-
 
 // UploadPHPProjectFile handles uploading a zipped folder in chunks,
 // saving it under projuktisheba/projects/php/<project_name>,
@@ -237,7 +269,7 @@ func (h *ProjectHandler) ListProjects(w http.ResponseWriter, r *http.Request) {
 //  5. Remove temporary chunk files and optionally the ZIP file.
 //  6. Return a JSON response indicating success or failure.
 func (h *ProjectHandler) UploadProjectFile(w http.ResponseWriter, r *http.Request) {
-	// Parse multipart form (limit to 50MB per chunk)
+	// Parse multipart form (limit 10MB per chunk)
 	if err := r.ParseMultipartForm(10 << 20); err != nil {
 		h.errorLog.Println("ERROR_01_UploadProjectFolder: failed to parse form:", err)
 		utils.BadRequest(w, fmt.Errorf("invalid form data: %w", err))
@@ -250,6 +282,7 @@ func (h *ProjectHandler) UploadProjectFile(w http.ResponseWriter, r *http.Reques
 		utils.BadRequest(w, fmt.Errorf("projectName is required"))
 		return
 	}
+
 	// Read projectFramework
 	projectFramework := r.FormValue("projectFramework")
 	if projectFramework == "" {
@@ -257,10 +290,24 @@ func (h *ProjectHandler) UploadProjectFile(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	h.infoLog.Println("Uploading project folder for:", projectName)
+	// Read filename and extract extension
+	originalFilename := r.FormValue("filename")
+	if originalFilename == "" {
+		utils.BadRequest(w, fmt.Errorf("filename is required"))
+		return
+	}
+
+	extension := filepath.Ext(originalFilename)
+	if extension == "" {
+		extension = ".zip" // assume zipped project by default
+	}
+
+	baseName := strings.TrimSuffix(originalFilename, extension)
+
+	h.infoLog.Printf("Uploading project folder for %s (%s), file: %s, ext: %s\n",
+		projectName, projectFramework, baseName, extension)
 
 	// Read chunk information
-	filename := r.FormValue("filename")
 	chunkIndexStr := r.FormValue("chunkIndex")
 	totalChunksStr := r.FormValue("totalChunks")
 
@@ -283,17 +330,18 @@ func (h *ProjectHandler) UploadProjectFile(w http.ResponseWriter, r *http.Reques
 	}
 	defer file.Close()
 
-	// Get the user home directory
-	homeDir, _ := os.UserHomeDir()
-	// Temporary chunk folder
-	tmpDir := filepath.Join(homeDir, "projuktisheba", "projects", projectFramework, projectName, "tmp_chunks")
+	// Directory to save the final project after rebuild
+	projectDir := utils.GetTemplateDirectory(projectFramework, projectName)
+
+	// Temporary directory for chunks
+	tmpDir := filepath.Join(projectDir, "tmp_chunks")
 	if err := os.MkdirAll(tmpDir, os.ModePerm); err != nil {
 		h.errorLog.Println("ERROR_02_UploadProjectFolder: failed to create tmp directory:", err)
 		utils.ServerError(w, fmt.Errorf("failed to create tmp directory: %w", err))
 		return
 	}
 
-	// Save chunk
+	// Save the chunk file
 	chunkPath := filepath.Join(tmpDir, fmt.Sprintf("chunk_%d", chunkIndex))
 	outFile, err := os.Create(chunkPath)
 	if err != nil {
@@ -309,35 +357,38 @@ func (h *ProjectHandler) UploadProjectFile(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// ==================== Merge & Extract when last chunk ====================
-	projectDir := filepath.Join(homeDir, "projuktisheba", "projects", "php", projectName)
-	finalZipPath := filepath.Join(projectDir, filename)
+	// ==================== Merge on last chunk ====================
+	// Final zip path = projectDir/projectName + extension
+	finalZipPath := filepath.Join(projectDir, projectName+extension)
+
 	if chunkIndex+1 == totalChunks {
-		// Ensure final project directory exists
+		// Ensure project directory exists
 		if err := os.MkdirAll(projectDir, os.ModePerm); err != nil {
 			h.errorLog.Println("ERROR_05_UploadProjectFolder: failed to create project directory:", err)
 			utils.ServerError(w, fmt.Errorf("failed to create project directory: %w", err))
 			return
 		}
 
-		// Merge all chunks
+		// Merge chunks into final ZIP
 		if err := mergeChunks(tmpDir, finalZipPath, totalChunks); err != nil {
 			h.errorLog.Println("ERROR_06_UploadProjectFolder: failed to merge chunks:", err)
 			utils.ServerError(w, fmt.Errorf("failed to merge chunks: %w", err))
 			return
 		}
 
-		// Clean up temporary files and ZIP
+		// Remove temporary chunks
 		os.RemoveAll(tmpDir)
-		os.Remove(finalZipPath)
 	}
 
-	// ==================== Register the projects ====================
-
-	// ==================== Build response ====================
+	// ==================== Build Response ====================
 	var resp models.Response
 	resp.Error = false
-	resp.Message = "Project folder uploaded successfully"
+
+	if chunkIndex+1 < totalChunks {
+		resp.Message = fmt.Sprintf("Chunk %d of %d uploaded successfully", chunkIndex+1, totalChunks)
+	} else {
+		resp.Message = "All chunks uploaded successfully. Project folder created."
+	}
 
 	utils.WriteJSON(w, http.StatusOK, resp)
 }
@@ -366,7 +417,24 @@ func mergeChunks(tmpDir, destPath string, totalChunks int) error {
 }
 
 // extractZip extracts a ZIP file to the specified destination directory
+// If files already exist, they will be overwritten
 func extractZip(zipPath, destDir string) error {
+	// Ensure destination directory exists
+	if err := os.MkdirAll(destDir, 0777); err != nil { // full read/write/exec permissions
+		switch {
+		case os.IsPermission(err):
+			return fmt.Errorf("permission denied while creating directory: %s", destDir)
+		case errors.Is(err, syscall.ENOSPC):
+			return fmt.Errorf("insufficient storage space to create directory")
+		case errors.Is(err, syscall.ENAMETOOLONG):
+			return fmt.Errorf("path too long: %s", destDir)
+		case errors.Is(err, syscall.EINVAL):
+			return fmt.Errorf("invalid directory name: %s", destDir)
+		default:
+			return fmt.Errorf("unexpected error creating directory %s: %v", destDir, err)
+		}
+	}
+
 	r, err := zip.OpenReader(zipPath)
 	if err != nil {
 		return err
@@ -377,20 +445,23 @@ func extractZip(zipPath, destDir string) error {
 		fpath := filepath.Join(destDir, f.Name)
 
 		if f.FileInfo().IsDir() {
-			if err := os.MkdirAll(fpath, os.ModePerm); err != nil {
+			if err := os.MkdirAll(fpath, 0777); err != nil {
 				return err
 			}
 			continue
 		}
 
-		if err := os.MkdirAll(filepath.Dir(fpath), os.ModePerm); err != nil {
+		// Ensure parent directory exists
+		if err := os.MkdirAll(filepath.Dir(fpath), 0777); err != nil {
 			return err
 		}
 
+		// Create/truncate file (overwrites if exists)
 		outFile, err := os.Create(fpath)
 		if err != nil {
 			return err
 		}
+
 		rc, err := f.Open()
 		if err != nil {
 			outFile.Close()
@@ -406,5 +477,6 @@ func extractZip(zipPath, destDir string) error {
 		outFile.Close()
 		rc.Close()
 	}
+
 	return nil
 }
