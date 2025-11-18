@@ -9,7 +9,7 @@ export const wordpressService = {
   ): Promise<{ error: boolean; message: string }> => {
     try {
       const response = await HttpClient.post(`/project/wordpress/deploy`, {
-        databaseName,
+        dbName: databaseName,
         domainName,
       });
 
