@@ -10,7 +10,8 @@ import (
 type HandlerRepo struct {
 	Auth           AuthHandler
 	DBManager      DatabaseManagerHandler
-	ProjectHandler ProjectHandler
+	Project ProjectHandler
+	WordPress WordPressHandler
 	DomainHandler  DomainHandler
 }
 
@@ -18,7 +19,8 @@ func NewHandlerRepo(db *dbrepo.DBRepository, JWT models.JWTConfig, infoLog, erro
 	return &HandlerRepo{
 		Auth:           newAuthHandler(db, JWT, infoLog, errorLog),
 		DBManager:      newDatabaseManagerHandler(db, infoLog, errorLog, mysqlRootDSN),
-		ProjectHandler: newProjectHandler(db, infoLog, errorLog),
+		Project: newProjectHandler(db, infoLog, errorLog),
+		WordPress: newWordPressHandler(db, infoLog, errorLog),
 		DomainHandler:  newDomainHandler(db, infoLog, errorLog),
 	}
 }

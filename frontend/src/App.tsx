@@ -25,10 +25,10 @@ import { AuthProvider } from "./context/AuthContext";
 import Home from "./pages/Dashboard/Home";
 import MySQL from "./pages/DatabaseManagement/MySQL";
 import PostgreSQL from "./pages/DatabaseManagement/PostgreSQL";
-import Wordpress from "./pages/AppManager/Wordpress";
 import PHP from "./pages/AppManager/PHP";
 import PreBuildSite from "./pages/AppManager/PreBuildSite";
 import Domain from "./pages/Domain/DomainManager";
+import WordpressSiteBuilder from "./pages/AppManager/Wordpress";
 
 export default function App() {
   return (
@@ -50,7 +50,7 @@ export default function App() {
             <Route path="/blank" element={<Blank />} />
 
             {/* APP Manager */}
-            <Route path="/wordpress" element={<Wordpress />} />
+            <Route path="/wordpress" element={<WordpressSiteBuilder />} />
             <Route path="/php" element={<PHP />} />
             <Route path="/pre-build" element={<PreBuildSite />} />
 

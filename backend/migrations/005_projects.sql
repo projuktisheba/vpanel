@@ -6,7 +6,7 @@ CREATE TABLE projects (
     project_framework VARCHAR(100) NOT NULL DEFAULT '',
     template_path TEXT NOT NULL DEFAULT '',
     project_directory TEXT NOT NULL DEFAULT '',
-    status VARCHAR(50) NOT NULL DEFAULT 'inactive',
+    status VARCHAR(50) NOT NULL DEFAULT 'build',  --build, active, suspend, inactive
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );

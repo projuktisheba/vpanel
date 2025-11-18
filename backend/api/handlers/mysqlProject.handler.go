@@ -67,13 +67,13 @@ func deployLaravelHandler(appRootDirectory, appFramework, domain string) error {
 	run("add-apt-repository", "ppa:ondrej/php", "-y")
 	run("apt", "update")
 
-	phpVersionRaw, err := RequiredPHPVersion(appRootDirectory)
-	if err != nil {
-		return fmt.Errorf("cannot detect PHP version: %v", err)
-	}
-	phpVersion := parsePHPVersion(phpVersionRaw) // ensure format like "8.1"
-	fmt.Println("Detected PHP version:", phpVersion)
-
+	// phpVersionRaw, err := RequiredPHPVersion(appRootDirectory)
+	// if err != nil {
+	// 	return fmt.Errorf("cannot detect PHP version: %v", err)
+	// }
+	// phpVersion := parsePHPVersion(phpVersionRaw) // ensure format like "8.1"
+	// fmt.Println("Detected PHP version:", phpVersion)
+	phpVersion := "8.3"
 	phpPkgs := []string{
 		"php" + phpVersion,
 		"php" + phpVersion + "-fpm",
@@ -93,11 +93,11 @@ func deployLaravelHandler(appRootDirectory, appFramework, domain string) error {
 	// ---------------------------------------------------------
 	// 4. Install Composer if not exists
 	// ---------------------------------------------------------
-	if _, err := exec.LookPath("composer"); err != nil {
-		run("php", "-r", "copy('https://getcomposer.org/installer','composer-setup.php');")
-		run("php", "composer-setup.php", "--install-dir=/usr/local/bin", "--filename=composer")
-		run("php", "-r", "unlink('composer-setup.php');")
-	}
+	// if _, err := exec.LookPath("composer"); err != nil {
+	// 	run("php", "-r", "copy('https://getcomposer.org/installer','composer-setup.php');")
+	// 	run("php", "composer-setup.php", "--install-dir=/usr/local/bin", "--filename=composer")
+	// 	run("php", "-r", "unlink('composer-setup.php');")
+	// }
 
 	// ---------------------------------------------------------
 	// 5. Ensure appRootDirectory exists
@@ -117,37 +117,37 @@ func deployLaravelHandler(appRootDirectory, appFramework, domain string) error {
 	// ---------------------------------------------------------
 	// 7. Composer install if vendor missing
 	// ---------------------------------------------------------
-	if _, err := os.Stat(filepath.Join(appRootDirectory, "vendor")); os.IsNotExist(err) {
-		if err := run("composer", "install", "--optimize-autoloader", "--no-dev", "--working-dir="+appRootDirectory); err != nil {
-			return fmt.Errorf("composer install failed: %v", err)
-		}
-	}
+	// if _, err := os.Stat(filepath.Join(appRootDirectory, "vendor")); os.IsNotExist(err) {
+	// 	if err := run("composer", "install", "--optimize-autoloader", "--no-dev", "--working-dir="+appRootDirectory); err != nil {
+	// 		return fmt.Errorf("composer install failed: %v", err)
+	// 	}
+	// }
 
 	// ---------------------------------------------------------
 	// 8. Artisan commands (idempotent)
 	// ---------------------------------------------------------
-	envFile := filepath.Join(appRootDirectory, ".env")
-	if _, err := os.Stat(envFile); os.IsNotExist(err) {
-		// copy .env.example if .env missing
-		exampleEnv := filepath.Join(appRootDirectory, ".env.example")
-		if _, err := os.Stat(exampleEnv); err == nil {
-			run("cp", exampleEnv, envFile)
-		}
-	}
+	// envFile := filepath.Join(appRootDirectory, ".env")
+	// if _, err := os.Stat(envFile); os.IsNotExist(err) {
+	// 	// copy .env.example if .env missing
+	// 	exampleEnv := filepath.Join(appRootDirectory, ".env.example")
+	// 	if _, err := os.Stat(exampleEnv); err == nil {
+	// 		run("cp", exampleEnv, envFile)
+	// 	}
+	// }
 
 	// key:generate only if APP_KEY is empty
-	run("php", filepath.Join(appRootDirectory, "artisan"), "key:generate")
-	run("php", filepath.Join(appRootDirectory, "artisan"), "migrate", "--force")
-	run("php", filepath.Join(appRootDirectory, "artisan"), "db:seed", "--force")
+	// run("php", filepath.Join(appRootDirectory, "artisan"), "key:generate")
+	// run("php", filepath.Join(appRootDirectory, "artisan"), "migrate", "--force")
+	// run("php", filepath.Join(appRootDirectory, "artisan"), "db:seed", "--force")
 	run("php", filepath.Join(appRootDirectory, "artisan"), "storage:link")
-	run("php", filepath.Join(appRootDirectory, "artisan"), "config:cache")
+	// run("php", filepath.Join(appRootDirectory, "artisan"), "config:cache")
 	run("php", filepath.Join(appRootDirectory, "artisan"), "route:cache")
 	run("php", filepath.Join(appRootDirectory, "artisan"), "view:cache")
 
 	// ---------------------------------------------------------
 	// 9. Nginx config (back up if exists)
 	// ---------------------------------------------------------
-	nginxConfig := fmt.Sprintf("/etc/nginx/sites-available/%s", appName)
+	nginxConfig := fmt.Sprintf("/etc/nginx/sites-available/%s.conf", appName)
 	if _, err := os.Stat(nginxConfig); err == nil {
 		run("mv", nginxConfig, nginxConfig+".bak")
 	}
