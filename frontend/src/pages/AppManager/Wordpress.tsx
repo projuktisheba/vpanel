@@ -34,7 +34,7 @@ export default function WordpressSiteBuilder() {
 
   const [summary, setSummary] = useState<Project | null>();
   const [buildError, setBuildError] = useState<string>("");
-  
+
   //fetch databases
   const fetchDatabaseList = async () => {
     try {
@@ -123,110 +123,94 @@ export default function WordpressSiteBuilder() {
       <ComponentCard>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Left Half: Form */}
-          <div className="space-y-6">
-            {/* Domain Name */}
-            <div className="w-full">
-              <Label>
-                Domain <span className="text-red-700 font-medium"> *</span>
-              </Label>
-              <Select
-                options={domains}
-                placeholder="Select a domain"
-                onChange={(value) => setDomainName(value)}
-                className="dark:bg-dark-900"
-              />
-              {domainNameError && (
-                <div className="text-red-600 text-sm font-medium">
-                  {domainNameError}
-                </div>
-              )}
-            </div>
-
-            {/* Database */}
-            <div className="w-full">
-              <Label>
-                Database <span className="text-red-700 font-medium"> *</span>
-              </Label>
-              <Select
-                options={databases}
-                placeholder="Select database"
-                onChange={(value) => setDatabaseName(value)}
-                className="dark:bg-dark-900"
-              />
-              {databaseNameError && (
-                <div className="text-red-600 text-sm font-medium">
-                  {databaseNameError}
-                </div>
-              )}
-            </div>
-
-            {/* Deploy Button */}
-            <div className="flex flex-col gap-4 mt-2">
-              <Button
-                disabled={domainName === "" || databaseName === "" || deploying}
-                size="sm"
-                variant="primary"
-                onClick={() => handleProjectDeployment()}
-                endIcon={<ArrowRight />}
-              >
-                {deploying ? (
-                  <>
-                    <Loader className="animate-spin w-4 h-4 mr-2" />
-                    Deploying...
-                  </>
-                ) : (
-                  "Deploy Website"
+          <ComponentCard
+            title="Deploy Your WordPress Site"
+            desc="Fill out the domain and database information below, then click 'Deploy Website' to start."
+          >
+            <div className="space-y-6">
+              {/* Domain Name */}
+              <div className="w-full">
+                <Label>
+                  Domain <span className="text-red-700 font-medium"> *</span>
+                </Label>
+                <Select
+                  options={domains}
+                  placeholder="Select a domain"
+                  onChange={(value) => setDomainName(value)}
+                  className="dark:bg-dark-900"
+                />
+                {domainNameError && (
+                  <div className="text-red-600 text-sm font-medium">
+                    {domainNameError}
+                  </div>
                 )}
-              </Button>
-            </div>
-          </div>
+              </div>
 
+              {/* Database */}
+              <div className="w-full">
+                <Label>
+                  Database <span className="text-red-700 font-medium"> *</span>
+                </Label>
+                <Select
+                  options={databases}
+                  placeholder="Select database"
+                  onChange={(value) => setDatabaseName(value)}
+                  className="dark:bg-dark-900"
+                />
+                {databaseNameError && (
+                  <div className="text-red-600 text-sm font-medium">
+                    {databaseNameError}
+                  </div>
+                )}
+              </div>
+
+              {/* Deploy Button */}
+              <div className="flex flex-col gap-4 mt-2">
+                <Button
+                  disabled={
+                    domainName === "" || databaseName === "" || deploying
+                  }
+                  size="sm"
+                  variant="primary"
+                  onClick={() => handleProjectDeployment()}
+                  endIcon={<ArrowRight />}
+                >
+                  {deploying ? (
+                    <>
+                      <Loader className="animate-spin w-4 h-4 mr-2" />
+                      Deploying...
+                    </>
+                  ) : (
+                    "Deploy Website"
+                  )}
+                </Button>
+              </div>
+            </div>
+          </ComponentCard>
           {/* Right Half: Compact & Short Workflow */}
-          <div className="space-y-4 p-4 bg-gray-50 dark:bg-dark-800 rounded-md">
-            <h3 className="font-semibold text-lg">Deployment Steps</h3>
+          <ComponentCard
+            title="Deployment Steps"
+            desc="Follow these steps to deploy your WordPress site"
+          >
             <ol className="list-none space-y-2">
-              <li className="flex items-start">
-                <span className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-full bg-blue-500 text-white text-xs font-bold">
-                  1
-                </span>
-                <span className="ml-2 text-gray-700 dark:text-gray-300 text-sm">
-                  Create MySQL database & user.
-                </span>
-              </li>
-              <li className="flex items-start">
-                <span className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-full bg-blue-500 text-white text-xs font-bold">
-                  2
-                </span>
-                <span className="ml-2 text-gray-700 dark:text-gray-300 text-sm">
-                  Add domain in Domain Management.
-                </span>
-              </li>
-              <li className="flex items-start">
-                <span className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-full bg-blue-500 text-white text-xs font-bold">
-                  3
-                </span>
-                <span className="ml-2 text-gray-700 dark:text-gray-300 text-sm">
-                  Select domain & database for deployment.
-                </span>
-              </li>
-              <li className="flex items-start">
-                <span className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-full bg-blue-500 text-white text-xs font-bold">
-                  4
-                </span>
-                <span className="ml-2 text-gray-700 dark:text-gray-300 text-sm">
-                  Click <strong>"Deploy Website"</strong>.
-                </span>
-              </li>
-              <li className="flex items-start">
-                <span className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-full bg-blue-500 text-white text-xs font-bold">
-                  5
-                </span>
-                <span className="ml-2 text-gray-700 dark:text-gray-300 text-sm">
-                  Wait for completion & check messages.
-                </span>
-              </li>
+              {[
+                "Create MySQL database & user.",
+                "Add domain in Domain Management.",
+                "Select domain & database for deployment.",
+                'Click "Deploy Website".',
+                "Wait for completion & check messages.",
+              ].map((step, index) => (
+                <li key={index} className="flex items-start">
+                  <span className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-full bg-blue-500 text-white text-xs font-bold">
+                    {index + 1}
+                  </span>
+                  <span className="ml-2 text-gray-700 dark:text-gray-300 text-sm">
+                    {step}
+                  </span>
+                </li>
+              ))}
             </ol>
-          </div>
+          </ComponentCard>
         </div>
         <div>
           {/* Deployment Info Card */}
