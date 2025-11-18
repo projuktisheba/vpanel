@@ -1,6 +1,6 @@
 import HttpClient from "../hooks/AxiosInstance";
 import { Response } from "../interfaces/common.interface";
-import { DatabaseResponse } from "../interfaces/databaseManager.interface";
+import { DatabaseResponse } from "../interfaces/database.interface";
 
 export const databaseManager = {
   // Create MySQL database

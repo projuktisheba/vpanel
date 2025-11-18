@@ -13,7 +13,7 @@ import DataTable from "../../components/tables/BasicTables/DataTable";
 import {
   Database,
   DBUser,
-} from "../../interfaces/databaseManager.interface";
+} from "../../interfaces/database.interface";
 import { Dropdown } from "../../components/ui/dropdown/Dropdown";
 import { DropdownItem } from "../../components/ui/dropdown/DropdownItem";
 import { Modal } from "../../components/ui/modal";

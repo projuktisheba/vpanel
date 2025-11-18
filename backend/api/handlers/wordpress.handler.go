@@ -88,14 +88,16 @@ func (h *WordPressHandler) DeploySite(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// ======== Build Response ========
+	databaseDetails, _ := h.DB.DBRegistry.GetDatabaseByName(r.Context(), req.DBName)
+	req.DatabaseInfo = &databaseDetails
 	resp := struct {
-		Error   bool            `json:"error"`
-		Message string          `json:"message"`
-		ProjectURL string `json:"projectURL"`
+		Error   bool           `json:"error"`
+		Message string         `json:"message"`
+		Summary models.Project `json:"summary"`
 	}{
 		Error:   false,
 		Message: "Project created successfully",
-		ProjectURL: "https://"+req.DomainName,
+		Summary: req,
 	}
 
 	utils.WriteJSON(w, http.StatusOK, resp)
