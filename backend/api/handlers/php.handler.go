@@ -251,10 +251,11 @@ func (h *PHPHandler) DeploySite(w http.ResponseWriter, r *http.Request) {
 
 	// Project Directory
 	projectDir := utils.GetPHPProjectDirectory(domainName)
-
+	h.infoLog.Println("Project Dir: ", projectDir)
+	projectDir = "/home/samiul/projuktisheba/bin/PHP/rest100.pssoft.xyz"
 	// ======== Create Project ========
 	// step 1: run the php deployer script with arguments [domainName]
-	if err := deploy.DeployPHPSite(domainName, user.GetCurrentUser().Name, projectDir); err != nil {
+	if err := deploy.DeployPHPSite(projectDir, user.GetCurrentUser().Username, domainName); err != nil {
 		h.errorLog.Println("ERROR_01_DeploySite: failed to deploy site:", err)
 		utils.ServerError(w, fmt.Errorf("failed to to deploy site: %w", err))
 

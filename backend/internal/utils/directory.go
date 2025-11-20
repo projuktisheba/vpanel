@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -27,12 +28,22 @@ func GetWordpressProjectName(domainName string) string {
 	return strings.ReplaceAll(domainName, ".", "_")
 }
 
+// GetPHPProjectBaseDirectory returns the full path for the base directory of PHP project
+// It also empty string when error occurs
+func GetPHPProjectBaseDirectory() string {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(homeDir, "projuktisheba", "bin", "PHP")
+}
 // GetPHPProjectDirectory returns the full path for a PHP project
 // based on the provided domain name.
 // It also empty string when error occurs
 func GetPHPProjectDirectory(domainName string) string {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
+		log.Println(err)
 		return ""
 	}
 	return filepath.Join(homeDir, "projuktisheba", "bin", "PHP", domainName)

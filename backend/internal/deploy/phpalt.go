@@ -12,7 +12,8 @@ import (
 	"time"
 )
 
-func DeployPHPSite(projectPath, sysUser, domain string) error {
+// This code works for restaurant website deployment
+func DeployReStaurantPHPSite(projectPath, sysUser, domain string) error {
 
 	if domain == "" || sysUser == "" {
 		return errors.New("domain and sysUser are required")
@@ -42,11 +43,13 @@ func DeployPHPSite(projectPath, sysUser, domain string) error {
 	// 1. Install PPA (Required for different PHP versions)
 	runSudo("apt-get", "install", "-y", "software-properties-common")
 	runSudo("add-apt-repository", "-y", "ppa:ondrej/php")
-	
-    // 2. Update with retry
+
+	// 2. Update with retry
 	for i := 0; i < 5; i++ {
 		err := runSudo("apt-get", "update", "-y")
-		if err == nil { break }
+		if err == nil {
+			break
+		}
 		if strings.Contains(err.Error(), "lock") {
 			time.Sleep(3 * time.Second)
 			continue
@@ -57,7 +60,9 @@ func DeployPHPSite(projectPath, sysUser, domain string) error {
 	// 3. Fix User Permissions
 	for i := 0; i < 5; i++ {
 		err := runSudo("usermod", "-aG", "www-data", sysUser)
-		if err == nil { break }
+		if err == nil {
+			break
+		}
 		if strings.Contains(err.Error(), "lock") {
 			time.Sleep(2 * time.Second)
 			continue
@@ -77,7 +82,7 @@ func DeployPHPSite(projectPath, sysUser, domain string) error {
 		out, _ := exec.Command("bash", "-c",
 			fmt.Sprintf(`grep '"php":' "%s" | head -n 1 | grep -oE '[0-9]+\.[0-9]+'`, composerFile)).
 			Output()
-		
+
 		detected := strings.TrimSpace(string(out))
 		if detected != "" {
 			verFloat, err := strconv.ParseFloat(detected, 64)
@@ -94,19 +99,12 @@ func DeployPHPSite(projectPath, sysUser, domain string) error {
 	// 5. Install PHP Packages
 	phpPackages := []string{
 		fmt.Sprintf("php%s-fpm", targetPHP),
-        fmt.Sprintf("php%s-cli", targetPHP),
-        fmt.Sprintf("php%s-common", targetPHP),
-        fmt.Sprintf("php%s-mysql", targetPHP),
-        fmt.Sprintf("php%s-xml", targetPHP),
-        fmt.Sprintf("php%s-mbstring", targetPHP),
-        fmt.Sprintf("php%s-curl", targetPHP),
-        
-        // NEW REQUIRED EXTENSIONS:
-        fmt.Sprintf("php%s-intl", targetPHP),   // Required by escpos-php
-        fmt.Sprintf("php%s-gd", targetPHP),     // Required by phpspreadsheet
-        fmt.Sprintf("php%s-bcmath", targetPHP), // Recommended for spreadsheets/financial math
-        fmt.Sprintf("php%s-zip", targetPHP),    // Critical for Composer speed
-        fmt.Sprintf("php%s-soap", targetPHP),   // Good to have for APIs
+		fmt.Sprintf("php%s-cli", targetPHP),
+		fmt.Sprintf("php%s-common", targetPHP),
+		fmt.Sprintf("php%s-mysql", targetPHP),
+		fmt.Sprintf("php%s-xml", targetPHP),
+		fmt.Sprintf("php%s-mbstring", targetPHP),
+		fmt.Sprintf("php%s-curl", targetPHP),
 		"zip", "unzip", "acl",
 	}
 
@@ -133,86 +131,72 @@ pm.max_spare_servers = 3
 chdir = /
 `, domain, sysUser, sysUser, socketPath)
 
-    // REPLACEMENT HERE
+	// REPLACEMENT HERE
 	if err := writeProtectedFile(poolConf, []byte(fpmPool)); err != nil {
 		return fmt.Errorf("failed to write fpm pool: %w", err)
 	}
 
 	runSudo("systemctl", "restart", fmt.Sprintf("php%s-fpm", targetPHP))
 
-	// ... (previous code remains the same) ... 
+	// ... previous code ...
 
-    // -------------------------
-    // FIX: Smart Composer Runner (Install with Fallback)
-    // -------------------------
-    fmt.Println("Running Composer...")
+	// -------------------------
+	// FIX: Smart Composer Runner
+	// -------------------------
+	fmt.Println("Running Composer...")
 
-    // Helper function to run composer commands
-    runComposer := func(action string) error {
-        composerBin := "/usr/local/bin/composer"
-        phpBin := fmt.Sprintf("/usr/bin/php%s", targetPHP)
+	// 1. Determine the command and arguments
+	composerBin := "/usr/local/bin/composer"
+	phpBin := fmt.Sprintf("/usr/bin/php%s", targetPHP)
 
-        composerArgs := []string{
-            composerBin,
-            action,
-            "--no-dev",
-            "--optimize-autoloader",
-            "--no-interaction",
-            // "--ignore-platform-reqs", // Uncomment if you have extension issues
-        }
+	composerArgs := []string{
+		composerBin,
+		"install",
+		"--no-dev",
+		"--optimize-autoloader",
+		"--no-interaction",
+	}
 
-        var cmd *exec.Cmd
-        
-        // Determine if we need sudo
-        // If we are root, we MUST sudo down to sysUser
-        if os.Geteuid() == 0 {
-            cmd = exec.Command("sudo", append([]string{"-u", sysUser, phpBin}, composerArgs...)...)
-        } else {
-            // If already running as the user (or similar), run directly
-            cmd = exec.Command(phpBin, composerArgs...)
-        }
+	var cmd *exec.Cmd
 
-        cmd.Dir = projectPath
-        
-        // Inject Environment Variables
-        homeDir := fmt.Sprintf("/home/%s", sysUser)
-        cmd.Env = os.Environ()
-        cmd.Env = append(cmd.Env,
-            fmt.Sprintf("HOME=%s", homeDir),
-            fmt.Sprintf("COMPOSER_HOME=%s/.composer", homeDir),
-        )
+	// 2. Check if we are already the correct user
+	// os.Getuid() gets the current process user ID.
+	// We need to find the UID of the target sysUser to compare.
+	// For simplicity here, if the app is running as 'samiul' and sysUser is 'samiul',
+	// we just run the command directly.
 
-        // Capture output
-        output, err := cmd.CombinedOutput()
-        if err != nil {
-            // Return the error AND the output so we can see why
-            return fmt.Errorf("%s", string(output))
-        }
-        return nil
-    }
+	currentUserStr := os.Getenv("USER") // Or use os.Getuid() logic if needed
 
-    // 1. Try 'install' first (Fastest, respects lock file)
-    fmt.Println("Attempting 'composer install'...")
-    if err := runComposer("install"); err != nil {
-        
-        // 2. Check if failure was due to Lock File Mismatch
-        // Composer usually mentions "lock file" or "constraints" in the output
-        errStr := err.Error()
-        if strings.Contains(errStr, "lock file") || strings.Contains(errStr, "constraint") {
-            fmt.Println("Composer.lock out of sync. Falling back to 'composer update'...")
-            
-            // 3. Fallback to 'update' (Slower, generates new lock file)
-            if errUpdate := runComposer("update"); errUpdate != nil {
-                 return fmt.Errorf("composer update failed: %w", errUpdate)
-            }
-            fmt.Println("Composer update successful.")
-        } else {
-            // It was some other error (like permission or network), fail.
-            return fmt.Errorf("composer install failed: %w", err)
-        }
-    }
+	if currentUserStr == sysUser || os.Getuid() != 0 {
+		// If we are ALREADY the user, or we are not root (and can't sudo easily without config),
+		// we try running directly.
+		cmd = exec.Command(phpBin, composerArgs...)
+	} else {
+		// If we are ROOT, we use sudo to drop privileges to sysUser
+		cmd = exec.Command("sudo", append([]string{"-u", sysUser, phpBin}, composerArgs...)...)
+	}
 
-    // ... (continue to Nginx setup) ...
+	// 3. CRITICAL: Set the Working Directory
+	cmd.Dir = projectPath
+
+	// 4. CRITICAL: Inject Environment Variables
+	// Composer needs to know where to write cache. Systemd often strips $HOME.
+	homeDir := fmt.Sprintf("/home/%s", sysUser)
+	cmd.Env = os.Environ() // Inherit current env
+	cmd.Env = append(cmd.Env,
+		fmt.Sprintf("HOME=%s", homeDir),
+		fmt.Sprintf("COMPOSER_HOME=%s/.composer", homeDir),
+		"COMPOSER_ALLOW_SUPERUSER=1", // Just in case, though we prefer non-root
+	)
+
+	// Capture output for debugging
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		fmt.Printf("Composer Output: %s\n", string(output))
+		// return fmt.Errorf("composer install failed (Exit: %s): %w", err, err)
+	}
+
+	// ... continue to Nginx setup ...
 
 	// 8. Nginx Config (Using writeProtectedFile)
 	webRoot := projectPath
@@ -240,14 +224,14 @@ chdir = /
 `, domain, domain, webRoot, socketPath)
 
 	confPath := filepath.Join("/etc/nginx/sites-available", domain)
-	
-    // REPLACEMENT HERE
+
+	// REPLACEMENT HERE
 	if err := writeProtectedFile(confPath, []byte(nginxConf)); err != nil {
 		return fmt.Errorf("failed writing nginx conf: %w", err)
 	}
 
 	runSudo("ln", "-sf", confPath, filepath.Join("/etc/nginx/sites-enabled", domain))
-	
+
 	if err := runSudo("nginx", "-t"); err != nil {
 		return fmt.Errorf("nginx config test failed: %w", err)
 	}

@@ -3,7 +3,6 @@ package run
 import (
 	"bytes"
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 )
@@ -51,33 +50,33 @@ func RunBashScript(scriptPath string, args []string) error {
 	return nil
 }
 
-func main() {
-	// --- Usage Example ---
+// func main() {
+// 	// --- Usage Example ---
 
-	// 1. Create a dummy script for demonstration
-	scriptContent := `#!/bin/bash
-echo "Processing data..."
-if [ "$1" == "fail" ]; then
-    echo "Critical Error: Invalid argument provided!" >&2
-    exit 1
-fi
-echo "Success: Processed argument '$1'"
-`
-	scriptName := "test_script.sh"
-	os.WriteFile(scriptName, []byte(scriptContent), 0755)
-	defer os.Remove(scriptName) // Cleanup after running
+// 	// 1. Create a dummy script for demonstration
+// 	scriptContent := `#!/bin/bash
+// echo "Processing data..."
+// if [ "$1" == "fail" ]; then
+//     echo "Critical Error: Invalid argument provided!" >&2
+//     exit 1
+// fi
+// echo "Success: Processed argument '$1'"
+// `
+// 	scriptName := "test_script.sh"
+// 	os.WriteFile(scriptName, []byte(scriptContent), 0755)
+// 	defer os.Remove(scriptName) // Cleanup after running
 
-	// 2. Run with valid arguments
-	fmt.Println(">>> Test 1: Valid Run")
-	err := RunBashScript(scriptName, []string{"hello"})
-	if err != nil {
-		log.Printf("Error: %v", err)
-	}
+// 	// 2. Run with valid arguments
+// 	fmt.Println(">>> Test 1: Valid Run")
+// 	err := RunBashScript(scriptName, []string{"hello"})
+// 	if err != nil {
+// 		log.Printf("Error: %v", err)
+// 	}
 
-	// 3. Run with invalid arguments (triggering error)
-	fmt.Println("\n>>> Test 2: Error Run")
-	err = RunBashScript(scriptName, []string{"fail"})
-	if err != nil {
-		log.Printf("Error Caught: %v", err)
-	}
-}
+// 	// 3. Run with invalid arguments (triggering error)
+// 	fmt.Println("\n>>> Test 2: Error Run")
+// 	err = RunBashScript(scriptName, []string{"fail"})
+// 	if err != nil {
+// 		log.Printf("Error Caught: %v", err)
+// 	}
+// }

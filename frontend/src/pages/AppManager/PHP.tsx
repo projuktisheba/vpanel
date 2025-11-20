@@ -7,7 +7,7 @@ import PageBreadcrumb from "../../components/common/PageBreadCrumb";
 import PageMeta from "../../components/common/PageMeta";
 import Label from "../../components/form/Label";
 import Button from "../../components/ui/button/Button";
-import { ArrowRight, Loader } from "lucide-react";
+import { ArrowRight, } from "lucide-react";
 import DropzoneComponent from "../../components/form/form-elements/DropZone";
 import Select from "../../components/form/Select";
 import { Domain } from "../../interfaces/domain.interface";
@@ -41,7 +41,11 @@ export default function ProjectUploader() {
     { title: "Initialize", description: "Setup project", hasError: false },
     { title: "Upload", description: "Upload files", hasError: false }, // error here
     { title: "Deploy", description: "Deploy to server", hasError: false },
-    { title: "Test", description: "QA & fixes", hasError: false },
+    {
+      title: "SSL Setup",
+      description: "Install SSL certificate and verify",
+      hasError: false,
+    },
   ]);
 
   // Function to mark/unmark error for a specific step
@@ -300,7 +304,7 @@ export default function ProjectUploader() {
                 )}
 
                 {/* Upload Progress Bar */}
-                {uploading && progress && (
+                {currentStep>0 && progress && (
                   <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-700">
                     <div className="mb-2 flex justify-between items-center">
                       <div className="flex items-center gap-x-3">
@@ -331,11 +335,7 @@ export default function ProjectUploader() {
                   </div>
                 )}
                 {processing && (
-                  <ProjectProgress
-                    steps={steps}
-                    currentStep={currentStep}
-                    // onStepChange={setCurrentStep}
-                  />
+                  <ProjectProgress steps={steps} currentStep={currentStep} />
                 )}
                 {/* Status Messages */}
                 {uploadError && (
@@ -361,14 +361,7 @@ export default function ProjectUploader() {
                   onClick={() => handleProjectDeployment()}
                   endIcon={!uploading && <ArrowRight />}
                 >
-                  {uploading ? (
-                    <>
-                      <Loader className="animate-spin w-4 h-4 mr-2" />
-                      Deploying Project...
-                    </>
-                  ) : (
-                    "Upload & Deploy"
-                  )}
+                  Upload & Deploy
                 </Button>
               </div>
             </div>
@@ -412,11 +405,17 @@ export default function ProjectUploader() {
                     <span className="flex-shrink-0 mr-2 font-bold text-blue-600 dark:text-blue-300">
                       1.
                     </span>
-                    <span>Don't close this page during project deployment</span>
+                    <span>Choosing wrong domain or database can break other sites</span>
                   </p>
                   <p className="flex items-start text-sm text-blue-700 dark:text-blue-200">
                     <span className="flex-shrink-0 mr-2 font-bold text-blue-600 dark:text-blue-300">
                       2.
+                    </span>
+                    <span>Don't close this page during project deployment</span>
+                  </p>
+                  <p className="flex items-start text-sm text-blue-700 dark:text-blue-200">
+                    <span className="flex-shrink-0 mr-2 font-bold text-blue-600 dark:text-blue-300">
+                      3.
                     </span>
                     <span>
                       Ensure your zip file contains the <code>index.php</code>{" "}

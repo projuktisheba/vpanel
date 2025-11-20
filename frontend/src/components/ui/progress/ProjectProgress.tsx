@@ -1,3 +1,4 @@
+import { Loader } from "lucide-react";
 import React from "react";
 export interface Step {
   title: string;
@@ -16,6 +17,10 @@ const ProjectProgress: React.FC<ProjectProgressProps> = ({
   currentStep,
   // onStepChange,
 }) => {
+  // Check if any step up to current has error
+  const globalError = steps
+    .slice(0, currentStep + 1)
+    .some((step) => step.hasError);
   // const nextStep = () => {
   //   if (currentStep < steps.length) onStepChange?.(currentStep + 1);
   // };
@@ -37,9 +42,7 @@ const ProjectProgress: React.FC<ProjectProgressProps> = ({
             {/* Active Progress Line (Dynamic Width) */}
             <div
               className={`absolute top-4 left-0 hidden h-1 -translate-y-1/2 transition-all duration-500 ease-in-out md:block ${
-                steps.slice(0, currentStep).some((step) => step.hasError)
-                  ? "bg-red-500"
-                  : "bg-indigo-500"
+                globalError ? "bg-red-500" : "bg-indigo-500"
               }`}
               style={{
                 width: `${
@@ -53,7 +56,7 @@ const ProjectProgress: React.FC<ProjectProgressProps> = ({
               const isCompleted = index < currentStep;
               const isCurrent = index === currentStep;
               const isPending = index > currentStep;
-
+              const stepHasError = step.hasError || globalError;
               return (
                 <div
                   key={index}
@@ -65,7 +68,11 @@ const ProjectProgress: React.FC<ProjectProgressProps> = ({
                   {index !== steps.length - 1 && (
                     <div
                       className={`absolute left-4 top-8 h-full w-0.5 -translate-x-1/2 md:hidden ${
-                        isCompleted ? "bg-indigo-500" : "bg-slate-200"
+                        stepHasError
+                          ? "bg-red-500"
+                          : isCompleted
+                          ? "bg-indigo-500"
+                          : "bg-slate-200"
                       }`}
                     ></div>
                   )}
@@ -73,40 +80,42 @@ const ProjectProgress: React.FC<ProjectProgressProps> = ({
                   {/* The Circle Indicator */}
                   <div
                     className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 transition-all duration-300
-                      ${step.hasError ? "border-red-500 bg-red-100" : ""}
-                      ${
-                        !step.hasError && isCompleted
-                          ? "border-indigo-500 bg-indigo-500"
-                          : ""
-                      }
-                      ${
-                        !step.hasError && isCurrent
-                          ? "border-indigo-500 bg-white"
-                          : ""
-                      }
-                      ${isPending ? "border-slate-200 bg-white" : ""}
+                       ${stepHasError ? "border-red-500 bg-red-100" : ""}
+                    ${
+                      !stepHasError && isCompleted
+                        ? "border-indigo-500 bg-indigo-500"
+                        : ""
+                    }
+                    ${
+                      !stepHasError && isCurrent
+                        ? "border-indigo-500 bg-white"
+                        : ""
+                    }
+                   
+                    ${
+                      isPending || (stepHasError && isCurrent)
+                        ? "border-slate-200 bg-white"
+                        : ""
+                    }
                     `}
                   >
                     {
                       isCompleted &&
-                        (step.hasError ? (
+                        (stepHasError ? (
                           <div className="h-2.5 w-2.5 rounded-full bg-red-500" /> // e.g., red dot if error
                         ) : (
                           <div className="h-2.5 w-2.5 rounded-full bg-white" />
                         )) // normal completed dot
                     }
 
-                    {isCurrent && (
-                      <div
-                        className={`h-2.5 w-2.5 rounded-full bg-indigo-500 ${
-                          steps
-                            .slice(0, currentStep)
-                            .some((step) => step.hasError)
-                            ? "bg-slate-200"
-                            : "border-2 border-t-indigo-500 border-r-indigo-500 border-b-transparent border-l-transparent rounded-full animate-spin"
-                        }`}
-                      />
-                    )}
+                    {isCurrent &&
+                      (stepHasError ? (
+                        <div
+                          className="h-2.5 w-2.5 rounded-full bg-slate-200"/>
+                      ) : (
+                        <Loader className="h-4 w-4 animate-spin text-indigo-800" />
+                      ))
+                    }
 
                     {isPending && (
                       <div className="h-2.5 w-2.5 rounded-full bg-slate-200" />
@@ -117,14 +126,16 @@ const ProjectProgress: React.FC<ProjectProgressProps> = ({
                   <div className="flex flex-col md:items-center md:pt-4 md:text-center">
                     <span
                       className={`text-sm font-bold transition-colors duration-300 ${
-                        isCurrent || isCompleted
-                          ? "text-black dark:text-white"
+                        isCompleted
+                          ? stepHasError
+                            ? "text-red-500"
+                            : "text-black dark:text-white"
                           : "text-slate-500"
                       }`}
                     >
                       {step.title}
                     </span>
-                    <span className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-0.5 max-w-[120px]">
+                    <span className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-0.5">
                       {step.description}
                     </span>
                   </div>
