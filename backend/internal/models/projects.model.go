@@ -1,6 +1,22 @@
 package models
 
-import "time"
+import (
+	"time"
+)
+
+const (
+	// Technical Status : User-Friendly Description
+	StatusInit         = "Initialized"       // "Preparing your project"
+	StatusFileUploaded = "Files Uploaded"    // "Your files have been received"
+	StatusBuild        = "Building"          // "We are setting up your project"
+	StatusRunning      = "Running"           // "Your project is live and running"
+	StatusSuspended    = "Suspended"         // "Your project is temporarily paused"
+	StatusClosed       = "Closed"            // "Your project has been closed"
+	StatusError        = "Error"             // "Something went wrong, please check"
+	StatusDeploying    = "Deploying"         // "Project is being deployed"
+	StatusCompleted    = "Completed"         // "Project setup is complete"
+)
+
 
 type Project struct {
 	ID               int64     `json:"id"`

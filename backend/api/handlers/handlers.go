@@ -12,6 +12,7 @@ type HandlerRepo struct {
 	DBManager      DatabaseManagerHandler
 	Project ProjectHandler
 	WordPress WordPressHandler
+	PHP PHPHandler
 	DomainHandler  DomainHandler
 }
 
@@ -21,6 +22,7 @@ func NewHandlerRepo(db *dbrepo.DBRepository, JWT models.JWTConfig, infoLog, erro
 		DBManager:      newDatabaseManagerHandler(db, infoLog, errorLog, mysqlRootDSN),
 		Project: newProjectHandler(db, infoLog, errorLog),
 		WordPress: newWordPressHandler(db, infoLog, errorLog),
+		PHP: newPHPHandler(db, infoLog, errorLog),
 		DomainHandler:  newDomainHandler(db, infoLog, errorLog),
 	}
 }

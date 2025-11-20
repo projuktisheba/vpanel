@@ -9,6 +9,7 @@ interface ButtonProps {
   onClick?: () => void;
   disabled?: boolean;
   className?: string;
+  isHidden?: boolean;
 }
 
 const Button: React.FC<ButtonProps> = ({
@@ -20,6 +21,7 @@ const Button: React.FC<ButtonProps> = ({
   onClick,
   className = "",
   disabled = false,
+  isHidden = false,
 }) => {
   // Size Classes with different border-radius
   const sizeClasses = {
@@ -46,7 +48,7 @@ const Button: React.FC<ButtonProps> = ({
     <button
       className={`inline-flex items-center justify-center gap-2 transition ${className} ${
         sizeClasses[size]
-      } ${variantClasses[variant]} ${
+      } ${variantClasses[variant]}  ${isHidden ? "hidden" : "block"}  ${
         disabled ? "cursor-not-allowed opacity-50" : ""
       }`}
       onClick={onClick}

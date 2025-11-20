@@ -116,10 +116,10 @@ export default function WordpressSiteBuilder() {
   return (
     <>
       <PageMeta
-        title="PHP Site Builder"
-        description="Manage & Build PHP Website"
+        title="Wordpress Site Builder"
+        description="Manage & Build Wordpress Website"
       />
-      <PageBreadcrumb pageTitle="Build PHP Website" />
+      <PageBreadcrumb pageTitle="Build Wordpress Website" />
       <ComponentCard>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Left Half: Form */}
@@ -190,26 +190,46 @@ export default function WordpressSiteBuilder() {
           {/* Right Half: Compact & Short Workflow */}
           <ComponentCard
             title="Deployment Steps"
-            desc="Follow these steps to deploy your WordPress site"
+            desc="Follow this guide for success."
           >
-            <ol className="list-none space-y-2">
-              {[
-                "Create MySQL database & user.",
-                "Add domain in Domain Management.",
-                "Select domain & database for deployment.",
-                'Click "Deploy Website".',
-                "Wait for completion & check messages.",
-              ].map((step, index) => (
-                <li key={index} className="flex items-start">
-                  <span className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-full bg-blue-500 text-white text-xs font-bold">
-                    {index + 1}
-                  </span>
-                  <span className="ml-2 text-gray-700 dark:text-gray-300 text-sm">
-                    {step}
-                  </span>
-                </li>
-              ))}
-            </ol>
+            <div className="p-2">
+              <ol className="relative border-l border-gray-200 dark:border-gray-700 ml-3 space-y-6">
+                {[
+                  "Create MySQL database & user.",
+                  "Add domain in Domain Management.",
+                  "Select domain & database for deployment.",
+                  'Click "Deploy Website".',
+                  "Wait for completion & check messages.",
+                ].map((step, index) => (
+                  <li key={index} className="ml-6">
+                    <span className="absolute flex items-center justify-center w-6 h-6 bg-blue-100 rounded-full -left-3 ring-8 ring-white dark:ring-gray-900 dark:bg-blue-900">
+                      <span className="text-xs font-bold text-blue-600 dark:text-blue-300">
+                        {index + 1}
+                      </span>
+                    </span>
+                    <p className="text-sm font-medium text-gray-900 dark:text-gray-300">
+                      {step}
+                    </p>
+                  </li>
+                ))}
+              </ol>
+
+              <div className="mt-6 bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-100 dark:border-blue-800">
+                <h4 className="text-blue-800 dark:text-blue-300 text-xs font-bold uppercase mb-1">
+                  Note
+                </h4>
+                <p className="text-sm text-blue-600 dark:text-blue-300">
+                  Make sure your domain
+                  {domainName && (<span className="mx-1 px-1 py-0.25 bg-gray-200 text-red-600 dark:bg-gray-700 rounded">
+                    {domainName}
+                  </span>)}
+                  has a DNS record pointing to this server:
+                  <code className="px-1 py-0.5 bg-gray-100 dark:bg-gray-800 rounded">
+                    203.161.48.179
+                  </code>
+                </p>
+              </div>
+            </div>
           </ComponentCard>
         </div>
         <div>

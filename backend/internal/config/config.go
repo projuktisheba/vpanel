@@ -28,6 +28,8 @@ func Load() (models.Config, error) {
 	} else {
 		cfg.Port = 8080 // Default port
 	}
+	// Read OWNER
+	cfg.JWT.SecretKey = os.Getenv("OWNER")
 
 	cfg.Env = os.Getenv("ENV")
 

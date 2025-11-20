@@ -1,22 +1,32 @@
 package routes
 
-import "github.com/go-chi/chi/v5"
+import (
+	"github.com/go-chi/chi/v5"
+)
 
 func projectHandlerRoutes() *chi.Mux {
 	mux := chi.NewRouter()
 
 	// ======== Project Routes ========
-	mux.Post("/create", handlerRepo.Project.CreateProject)                // Create new project
-	mux.Put("/update", handlerRepo.Project.UpdateProject)            // Update all project fields
-	mux.Put("/status", handlerRepo.Project.UpdateProjectStatus) // Update only project status, query parameter: project_id
-	mux.Delete("/remove", handlerRepo.Project.DeleteProject)         // Delete project, query parameter: project_id
-	mux.Get("/list", handlerRepo.Project.ListProjects)                  // List all projects
-
-	// Optional: Upload project folder (if using UploadProjectFolder style)
+	// Optional: Upload project folder in .zip format
 	mux.Post("/upload-project-folder", handlerRepo.Project.UploadProjectFile)
 
+	// ======== PHP Project Routes ========
+	//Initiate a php project
+	// request body: {domainName, dbName}, response: {error, message, summary}
+	mux.Post("/php/init", handlerRepo.PHP.InitProject)
+
+	// Upload project folder to the project directory
+	// request body: {projectName, projectID, filename, chunkIndex, totalChunks}, response: {error, message}
+	mux.Post("/php/upload-project-file", handlerRepo.PHP.UploadProjectFile)
+
+	// Deploy the project(php-fpm setup, dependency installation, nginx server block setup)
+	mux.Post("/php/deploy", handlerRepo.PHP.DeploySite)
+	
+	// List all projects
+	mux.Get("/php/list", handlerRepo.PHP.ListProjects)
 
 	// ======== Wordpress Project Routes ========
-	mux.Post("/wordpress/deploy", handlerRepo.WordPress.DeploySite) 
+	mux.Post("/wordpress/deploy", handlerRepo.WordPress.DeploySite)
 	return mux
 }

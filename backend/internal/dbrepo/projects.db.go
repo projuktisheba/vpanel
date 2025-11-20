@@ -38,12 +38,6 @@ func (r *ProjectRepo) CreateProject(ctx context.Context, p *models.Project) erro
 	)
 
 	if err := row.Scan(&p.ID, &p.CreatedAt, &p.UpdatedAt); err != nil {
-		var pgErr *pgconn.PgError
-
-		// Foreign key violation for domain_name
-		if errors.As(err, &pgErr) && pgErr.Code == "23503" {
-			return errors.New("invalid domain_name: domain does not exist")
-		}
 		return err
 	}
 	return nil
@@ -126,6 +120,49 @@ func (r *ProjectRepo) DeleteProject(ctx context.Context, id int64) error {
 		return errors.New("project not found")
 	}
 	return nil
+}
+
+// GetProjectByID returns a single project info by ID
+func (r *ProjectRepo) GetProjectByID(ctx context.Context, id int64) (*models.Project, error) {
+	// 1. Query with WHERE clause
+	query := `
+        SELECT 
+            id, 
+            project_name, 
+            domain_name, 
+            db_name, 
+            project_framework,
+            template_path,
+            project_directory,
+            status, 
+            created_at, 
+            updated_at
+        FROM projects
+        WHERE id = $1 
+    `
+
+	var p models.Project
+
+	// 2. Use QueryRowContext for fetching a single record
+	err := r.db.QueryRow(ctx, query, id).Scan(
+		&p.ID,
+		&p.ProjectName,
+		&p.DomainName,
+		&p.DBName,
+		&p.ProjectFramework,
+		&p.TemplatePath,
+		&p.ProjectDirectory,
+		&p.Status,
+		&p.CreatedAt,
+		&p.UpdatedAt,
+	)
+
+	if err != nil {
+        // Handle "no rows found" specifically if needed
+		return nil, err
+	}
+
+	return &p, nil
 }
 
 // ListProjects returns all projects

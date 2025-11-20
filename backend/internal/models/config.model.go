@@ -7,6 +7,7 @@ type Response struct {
 	Error   bool   `json:"error"`
 	Message string `json:"message"`
 }
+
 // JWT holds token data
 type JWT struct {
 	ID        int64     `json:"id"`
@@ -31,14 +32,15 @@ type JWTConfig struct {
 }
 
 type DBConfig struct {
-	DSN    string
-	DEVDSN string
+	DSN          string
+	DEVDSN       string
 	MySQLRootDSN string
 }
 
 type Config struct {
-	Port int64
-	Env  string
-	JWT  JWTConfig
-	DB   DBConfig
+	Port  int64
+	Env   string
+	Owner string
+	JWT   JWTConfig
+	DB    DBConfig
 }
