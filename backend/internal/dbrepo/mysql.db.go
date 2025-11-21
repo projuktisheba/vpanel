@@ -125,37 +125,67 @@ func (mysql *MySQLManagerRepo) ExecuteSQLFile(rootDSN, dbName, filePath string) 
 // - dsn: connection string for a MySQL user with privileges to drop databases (e.g., "user:password@tcp(127.0.0.1:3306)/")
 // - dbName: name of the database to delete
 // Returns nil if the database was successfully deleted or didn't exist, otherwise returns an error.
-func (mysql *MySQLManagerRepo) DropMySQLDatabase(user, password, host, dbName string) error {
-	// 1. Construct DSN (Data Source Name) for connecting to MySQL
-	// Note: Do NOT specify a database here because you cannot drop a database
-	dsn := fmt.Sprintf("%s:%s@tcp(%s)/", user, password, host)
-
-	// 2. Open a connection to MySQL
-	db, err := sql.Open("mysql", dsn)
+func (mysql *MySQLManagerRepo) DropMySQLDatabase(rootDSN, dbName, username string) error {
+	// Connect as root (must NOT specify a database)
+	db, err := sql.Open("mysql", rootDSN)
 	if err != nil {
-		return fmt.Errorf("failed to connect: %v", err)
+		return fmt.Errorf("failed to connect as root: %v", err)
 	}
-	// Ensure the database connection is closed when function exits
 	defer db.Close()
 
-	// 3. Test the connection
-	if err := db.Ping(); err != nil {
+	// Validate connection
+	if err = db.Ping(); err != nil {
 		return fmt.Errorf("failed to ping MySQL: %v", err)
 	}
 
-	// 4. Prepare the SQL query to drop the database if it exists
-	query := fmt.Sprintf("DROP DATABASE IF EXISTS `%s`", dbName)
-
-	// 5. Execute the query
-	_, err = db.Exec(query)
+	// 1. Check if database exists
+	exists, err := databaseExists(db, dbName)
 	if err != nil {
-		return fmt.Errorf("failed to drop database: %v", err)
+		return fmt.Errorf("failed to check database: %v", err)
 	}
 
-	// 6. Inform the user
-	fmt.Printf("Database %s deleted successfully.\n", dbName)
+	if !exists {
+		return fmt.Errorf("database '%s' does not exist", dbName)
+	}
+
+	// 2. Kill active connections to the database
+	killQuery := fmt.Sprintf(`
+        SELECT CONCAT('KILL ', id, ';')
+        FROM information_schema.processlist
+        WHERE db = '%s';
+    `, dbName)
+
+	rows, err := db.Query(killQuery)
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var killCmd string
+			rows.Scan(&killCmd)
+			db.Exec(killCmd) // execute kill command
+		}
+	}
+
+	// 3. Drop the database
+	dropQuery := fmt.Sprintf("DROP DATABASE `%s`;", dbName)
+	if _, err := db.Exec(dropQuery); err != nil {
+		return fmt.Errorf("failed to drop database '%s': %v", dbName, err)
+	}
+
+	log.Printf("Database '%s' deleted successfully", dbName)
+
+	// 4. (Optional) Remove user privileges or drop user
+	if username != "" {
+		revoke := fmt.Sprintf("REVOKE ALL PRIVILEGES, GRANT OPTION FROM '%s'@'%%';", username)
+		db.Exec(revoke)
+
+		// Optional: DROP USER entirely
+		// dropUser := fmt.Sprintf("DROP USER IF EXISTS '%s'@'%%';", username)
+		// db.Exec(dropUser)
+	}
+
 	return nil
 }
+
 
 // Helper: check if a database exists
 func databaseExists(db *sql.DB, dbName string) (bool, error) {

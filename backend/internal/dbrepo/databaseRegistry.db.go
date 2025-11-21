@@ -227,17 +227,18 @@ func (r *DatabaseRegistryRepo) UpdateDatabaseRegistry(ctx context.Context, d *mo
 // Returns nil if successful, or an error if database does not exist or already deleted.
 func (r *DatabaseRegistryRepo) DeleteDatabase(ctx context.Context, dbID int64) error {
 	query := `
-		UPDATE databases
-		SET deleted_at = CURRENT_TIMESTAMP
-		WHERE id = $1 AND deleted_at IS NULL
+		DELETE FROM databases
+		WHERE id = $1
 	`
 	cmdTag, err := r.db.Exec(ctx, query, dbID)
 	if err != nil {
 		return fmt.Errorf("failed to delete database: %v", err)
 	}
+
 	if cmdTag.RowsAffected() == 0 {
-		return fmt.Errorf("database not found or already deleted")
+		return fmt.Errorf("database not found")
 	}
+
 	return nil
 }
 

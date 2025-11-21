@@ -150,6 +150,9 @@ func DeployWordPress(domain string, projectRoot string) error {
     root %s;
     index index.php index.html;
 
+	# Allow large file uploads (2048M)
+    client_max_body_size 2048M;
+
     location / {
         try_files $uri $uri/ /index.php?$args;
     }
@@ -157,6 +160,11 @@ func DeployWordPress(domain string, projectRoot string) error {
     location ~ \.php$ {
         include snippets/fastcgi-php.conf;
         fastcgi_pass unix:%s;
+		# Increase timeout for long processes
+        # Increase timeouts for long restorations
+        fastcgi_read_timeout 1800; 
+        fastcgi_send_timeout 1800;
+        fastcgi_connect_timeout 1800;
     }
 
     location ~ /\.ht {
@@ -219,7 +227,6 @@ func DeployWordPress(domain string, projectRoot string) error {
 
 	return nil
 }
-
 
 // SuspendSite temporarily disables a site by commenting out Nginx config
 func SuspendSite(domain string) error {
@@ -316,6 +323,7 @@ func DeleteProject(domain string, projectRoot string) error {
 		_ = exec.Command("sudo", "systemctl", "reload", "nginx").Run()
 	}
 
+	// Remove cert records
 	fmt.Printf("✅ Site %s fully deleted.\n", domain)
 	return nil
 }

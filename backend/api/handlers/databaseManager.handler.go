@@ -147,10 +147,8 @@ func (h *DatabaseManagerHandler) ImportMySQLDatabase(w http.ResponseWriter, r *h
 		return
 	}
 
-	// Create path to save SQL file
-	homeDir, _ := os.UserHomeDir()
-	//initially save file to the template folder $userhomedir/projuktisheba/templates/databases/<database-server>/<database-name>
-	dirPath := filepath.Join(homeDir, "projuktisheba", "templates", "databases", "mysql")
+	//get temp directory
+	dirPath := utils.GetTempDirectory()
 	if err := os.MkdirAll(dirPath, os.ModePerm); err != nil {
 		h.errorLog.Println("ERROR_02_ImportDB: failed to create directory:", err)
 		utils.ServerError(w, fmt.Errorf("failed to create directory: %w", err))
@@ -173,11 +171,17 @@ func (h *DatabaseManagerHandler) ImportMySQLDatabase(w http.ResponseWriter, r *h
 		return
 	}
 
+	defer func() {
+		//remove file finally
+		os.Remove(savePath)
+	}()
+
 	// ==================== Execute SQL statements ====================
 	err = h.DB.MySQL.ExecuteSQLFile(h.mysqlRootDSN, dbName, savePath)
 	if err != nil {
 		h.errorLog.Println("ERROR_05_ImportDB: Failed to execute SQL file:", err)
 		utils.ServerError(w, fmt.Errorf("Failed to execute SQL file: %w", err))
+		return
 	}
 
 	// ==================== Build response ====================
@@ -212,7 +216,7 @@ func (h *DatabaseManagerHandler) DeleteMySQLDatabase(w http.ResponseWriter, r *h
 	// ----------------------------------------
 	// 2 Drop the database from MySQL
 	// ----------------------------------------
-	err = h.DB.MySQL.DropMySQLDatabase(registryDB.User.Username, registryDB.User.Password, "127.0.0.1:3306", dbName)
+	err = h.DB.MySQL.DropMySQLDatabase(h.mysqlRootDSN, dbName, registryDB.User.Username)
 	if err != nil {
 		utils.ServerError(w, fmt.Errorf("failed to drop database: %w", err))
 		return

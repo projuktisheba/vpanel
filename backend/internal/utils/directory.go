@@ -58,3 +58,13 @@ func GetPHPProjectName(domainName string) string {
 	// replace the dots with underscore (example: subdomain.domain.com will be subdomain_domain_com)
 	return strings.ReplaceAll(domainName, ".", "_")
 }
+
+// GetTempDirectory returns the full path for temporary directory
+// It also empty string when error occurs
+func GetTempDirectory() string {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(homeDir, "projuktisheba", "temp")
+}
