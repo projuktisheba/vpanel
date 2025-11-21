@@ -58,7 +58,7 @@ export default function DomainManager() {
   setSSLErrorMessage("");
 
   try {
-    const data = await sslManager.checkAndIssueSSL(domainName);
+    const data = await sslManager.issueSSL(domainName);
 
     if (data.error) {
       setSSLErrorMessage(data.message || "Failed to setup SSL");

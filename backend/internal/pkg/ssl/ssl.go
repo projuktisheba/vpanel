@@ -130,19 +130,7 @@ func SetupSSL(ctx context.Context, domain, email string, useNginx bool) error {
 	}
 
 	// ----------------------------------------
-	// 1. CHECK IF SSL ALREADY EXISTS
-	// ----------------------------------------
-	if CheckSSL(domain) {
-		fmt.Println("------------------------------------------------")
-		fmt.Printf("SSL already exists for domain: %s\n", domain)
-		fmt.Printf("Location: /etc/letsencrypt/live/%s/\n", domain)
-		fmt.Println("Skipping certificate issuance.")
-		fmt.Println("------------------------------------------------")
-		return nil
-	}
-
-	// ----------------------------------------
-	// 2. CHECK & INSTALL CERTBOT IF NEEDED
+	// 1. CHECK & INSTALL CERTBOT IF NEEDED
 	// ----------------------------------------
 	fmt.Println("Checking Certbot installation...")
 
@@ -165,7 +153,7 @@ func SetupSSL(ctx context.Context, domain, email string, useNginx bool) error {
 	}
 
 	// ----------------------------------------
-	// 3. RUN CERTBOT
+	// 2. RUN CERTBOT
 	// ----------------------------------------
 	fmt.Println("Starting SSL setup for domain:", domain)
 
@@ -196,7 +184,7 @@ func SetupSSL(ctx context.Context, domain, email string, useNginx bool) error {
 	}
 
 	// ----------------------------------------
-	// 4. RELOAD NGINX IF USED
+	// 3. RELOAD NGINX IF USED
 	// ----------------------------------------
 	if useNginx {
 		if err := syscmd.RunSudoCmd(ctx, "systemctl", "reload", "nginx"); err != nil {
