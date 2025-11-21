@@ -165,6 +165,49 @@ func (r *ProjectRepo) GetProjectByID(ctx context.Context, id int64) (*models.Pro
 	return &p, nil
 }
 
+// GetProjectByDomain returns a single project info by ID
+func (r *ProjectRepo) GetProjectByDomain(ctx context.Context, domainName string) (*models.Project, error) {
+	// 1. Query with WHERE clause
+	query := `
+        SELECT 
+            id, 
+            project_name, 
+            domain_name, 
+            db_name, 
+            project_framework,
+            template_path,
+            project_directory,
+            status, 
+            created_at, 
+            updated_at
+        FROM projects
+        WHERE domain_name = $1 
+    `
+
+	var p models.Project
+
+	// 2. Use QueryRowContext for fetching a single record
+	err := r.db.QueryRow(ctx, query, domainName).Scan(
+		&p.ID,
+		&p.ProjectName,
+		&p.DomainName,
+		&p.DBName,
+		&p.ProjectFramework,
+		&p.TemplatePath,
+		&p.ProjectDirectory,
+		&p.Status,
+		&p.CreatedAt,
+		&p.UpdatedAt,
+	)
+
+	if err != nil {
+        // Handle "no rows found" specifically if needed
+		return nil, err
+	}
+
+	return &p, nil
+}
+
 // ListProjects returns all projects
 func (r *ProjectRepo) ListProjects(ctx context.Context) ([]*models.Project, error) {
 	rows, err := r.db.Query(ctx, `

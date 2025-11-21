@@ -6,15 +6,13 @@ import (
 
 const (
 	// Technical Status : User-Friendly Description
-	StatusInit         = "Initialized"       // "Preparing your project"
-	StatusFileUploaded = "Files Uploaded"    // "Your files have been received"
-	StatusBuild        = "Building"          // "We are setting up your project"
-	StatusRunning      = "Running"           // "Your project is live and running"
-	StatusSuspended    = "Suspended"         // "Your project is temporarily paused"
-	StatusClosed       = "Closed"            // "Your project has been closed"
-	StatusError        = "Error"             // "Something went wrong, please check"
-	StatusDeploying    = "Deploying"         // "Project is being deployed"
-	StatusCompleted    = "Completed"         // "Project setup is complete"
+	ProjectStatusInit         = "Initialized"       // "Preparing your project"
+	ProjectStatusFileUploaded = "Files Uploaded"    // "Your files have been received"
+	ProjectStatusRunning      = "Running"           // "Your project is live and running"
+	ProjectStatusSuspended    = "Suspended"         // "Your project is temporarily paused"
+	ProjectStatusClosed       = "Closed"            // "Your project has been closed"
+	ProjectStatusError        = "Error"             // "Something went wrong, please check"
+	ProjectStatusDeploying    = "Deploying"         // "Project is being deployed"
 )
 
 

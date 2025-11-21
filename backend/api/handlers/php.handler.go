@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -15,7 +16,7 @@ import (
 	"github.com/projuktisheba/vpanel/backend/internal/dbrepo"
 	"github.com/projuktisheba/vpanel/backend/internal/deploy"
 	"github.com/projuktisheba/vpanel/backend/internal/models"
-	"github.com/projuktisheba/vpanel/backend/internal/pkg/user"
+	user "github.com/projuktisheba/vpanel/backend/internal/pkg/sysuser"
 	"github.com/projuktisheba/vpanel/backend/internal/utils"
 )
 
@@ -64,7 +65,7 @@ func (h *PHPHandler) InitProject(w http.ResponseWriter, r *http.Request) {
 	projectData.ProjectFramework = "PHP"
 	projectData.TemplatePath = ""
 	projectData.ProjectDirectory = utils.GetPHPProjectDirectory(req.DomainName)
-	projectData.Status = models.StatusInit
+	projectData.Status = models.ProjectStatusInit
 
 	// ======== Create Project ========
 	// step 1: Insert a record to the projects table
@@ -80,12 +81,32 @@ func (h *PHPHandler) InitProject(w http.ResponseWriter, r *http.Request) {
 		}
 		// Unique key violation for domain_name
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			utils.BadRequest(w, fmt.Errorf("domain already exist"))
+			projectData, err := h.DB.ProjectRepo.GetProjectByDomain(r.Context(), projectData.DomainName)
+			if err == nil && slices.Contains([]string{models.ProjectStatusInit, models.ProjectStatusFileUploaded, models.ProjectStatusError}, projectData.Status) {
+				// ======== Build Response ========
+
+				resp := struct {
+					Error   bool            `json:"error"`
+					Message string          `json:"message"`
+					Summary *models.Project `json:"summary"`
+				}{
+					Error:   false,
+					Message: "Project created successfully",
+					Summary: projectData,
+				}
+
+				utils.WriteJSON(w, http.StatusOK, resp)
+				return
+			} else {
+				h.errorLog.Println(projectData)
+				utils.BadRequest(w, fmt.Errorf("A website is already running in this domain", err))
+				return
+			}
+		} else {
+			utils.BadRequest(w, fmt.Errorf("failed to create project: %w", err))
 			return
 		}
 
-		utils.BadRequest(w, fmt.Errorf("failed to create project: %w", err))
-		return
 	}
 	// ======== Build Response ========
 
@@ -215,7 +236,7 @@ func (h *PHPHandler) UploadProjectFile(w http.ResponseWriter, r *http.Request) {
 		os.RemoveAll(finalZipPath)
 
 		// set project status to file uploaded
-		if _, err := h.DB.ProjectRepo.UpdateProjectStatus(r.Context(), int64(projectID), models.StatusFileUploaded); err != nil {
+		if _, err := h.DB.ProjectRepo.UpdateProjectStatus(r.Context(), int64(projectID), models.ProjectStatusFileUploaded); err != nil {
 			h.errorLog.Println("ERROR_08_UploadProjectFolder: failed to update status:", err)
 			utils.ServerError(w, fmt.Errorf("failed to update status: %w", err))
 			return
@@ -252,7 +273,6 @@ func (h *PHPHandler) DeploySite(w http.ResponseWriter, r *http.Request) {
 	// Project Directory
 	projectDir := utils.GetPHPProjectDirectory(domainName)
 	h.infoLog.Println("Project Dir: ", projectDir)
-	projectDir = "/home/samiul/projuktisheba/bin/PHP/rest100.pssoft.xyz"
 	// ======== Create Project ========
 	// step 1: run the php deployer script with arguments [domainName]
 	if err := deploy.DeployPHPSite(projectDir, user.GetCurrentUser().Username, domainName); err != nil {
@@ -260,12 +280,12 @@ func (h *PHPHandler) DeploySite(w http.ResponseWriter, r *http.Request) {
 		utils.ServerError(w, fmt.Errorf("failed to to deploy site: %w", err))
 
 		//update project status to error
-		_, _ = h.DB.ProjectRepo.UpdateProjectStatus(r.Context(), int64(projectID), models.StatusError)
+		_, _ = h.DB.ProjectRepo.UpdateProjectStatus(r.Context(), int64(projectID), models.ProjectStatusError)
 		return
 	}
 
 	// step 3: Update the project status to running
-	if _, err := h.DB.ProjectRepo.UpdateProjectStatus(r.Context(), int64(projectID), models.StatusRunning); err != nil {
+	if _, err := h.DB.ProjectRepo.UpdateProjectStatus(r.Context(), int64(projectID), models.ProjectStatusRunning); err != nil {
 		h.errorLog.Println("ERROR_02_DeploySite: failed to update project status:", err)
 		utils.ServerError(w, fmt.Errorf("failed to update project status: %w", err))
 		return

@@ -7,11 +7,14 @@ import PageBreadcrumb from "../../components/common/PageBreadCrumb";
 import PageMeta from "../../components/common/PageMeta";
 import Label from "../../components/form/Label";
 import Button from "../../components/ui/button/Button";
-import { ArrowRight, } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import DropzoneComponent from "../../components/form/form-elements/DropZone";
 import Select from "../../components/form/Select";
 import { Domain } from "../../interfaces/domain.interface";
-import { domainManager } from "../../services/domainManager.service";
+import {
+  domainManager,
+  sslManager,
+} from "../../services/domainManager.service";
 import { databaseManager } from "../../services/databaseManager.service";
 import ProjectProgress, {
   Step,
@@ -149,7 +152,7 @@ export default function ProjectUploader() {
       } else {
         setUploadError(initResponse.message);
         setStepError(0, true);
-        return; // Stop further execution
+        return;
       }
 
       // ====== Step 1: Upload Project Folder ======
@@ -159,10 +162,7 @@ export default function ProjectUploader() {
           projectName,
           file,
           (done, progress) => {
-            // Update progress state for UI
             setProgress(progress);
-
-            // If upload finished successfully
             if (done) {
               setCurrentStep(2);
               for (let step = 0; step <= 1; step++) setStepError(step, false);
@@ -170,11 +170,10 @@ export default function ProjectUploader() {
           }
         );
 
-        // If upload returned a failure response
         if (!uploadResult.success) {
-          setStepError(1, true); // Mark upload step as error
+          setStepError(1, true);
           setUploadError(uploadResult.message);
-          return; // Stop further execution
+          return;
         }
       } catch (err: any) {
         console.error(err);
@@ -194,11 +193,12 @@ export default function ProjectUploader() {
 
         if (deployResult.success) {
           setStepError(2, false);
-          setCurrentStep(3); // Next step (if you have testing step)
+          setCurrentStep(3);
           setUploadSuccess("Project deployed successfully!");
         } else {
           setStepError(2, true);
           setUploadError(deployResult.message);
+          return;
         }
       } catch (err: any) {
         console.error(err);
@@ -206,10 +206,30 @@ export default function ProjectUploader() {
         setUploadError(
           "Unexpected error during deployment: " + (err?.message || err)
         );
+        return;
       }
 
-      // ====== Step 3: Optional Test Step ======
-      // You can handle testing or QA step similarly
+      // ====== Step 4: Issue SSL ======
+      try {
+        setCurrentStep(4);
+        const sslResult = await sslManager.issueSSL(projectName);
+
+        if (sslResult.error) {
+          setStepError(4, true);
+          setUploadError("SSL setup failed: " + sslResult.message);
+        } else {
+          setStepError(4, false);
+          setUploadSuccess(
+            (prev) => prev + " SSL setup completed successfully!"
+          );
+        }
+      } catch (err: any) {
+        console.error(err);
+        setStepError(4, true);
+        setUploadError(
+          "Unexpected error during SSL setup: " + (err?.message || err)
+        );
+      }
     } catch (err) {
       console.error(err);
       setUploadError("Project creation failed. Check console.");
@@ -304,15 +324,17 @@ export default function ProjectUploader() {
                 )}
 
                 {/* Upload Progress Bar */}
-                {currentStep>0 && progress && (
-                  <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-700">
+                {currentStep > 0 && progress && (
+                  <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
                     <div className="mb-2 flex justify-between items-center">
+                      {/* File Icon + Text */}
                       <div className="flex items-center gap-x-3">
-                        <span className="w-8 h-8 flex justify-center items-center bg-white dark:bg-gray-700 border border-blue-200 text-blue-500 rounded shadow-sm">
+                        <span className="w-8 h-8 flex justify-center items-center bg-white dark:bg-gray-800 border border-blue-200 dark:border-gray-700 text-blue-500 rounded shadow-sm">
                           <FileIcon />
                         </span>
+
                         <div>
-                          <p className="text-xs font-medium dark:text-gray-50">
+                          <p className="text-xs font-medium text-gray-800 dark:text-gray-200">
                             Uploading...
                           </p>
                           <p className="text-[10px] text-gray-500 dark:text-gray-400">
@@ -321,11 +343,14 @@ export default function ProjectUploader() {
                           </p>
                         </div>
                       </div>
+
+                      {/* Percent */}
                       <div className="text-sm font-bold text-blue-600 dark:text-blue-400">
                         {progress.percentage.toFixed(1)}%
                       </div>
                     </div>
 
+                    {/* TailAdmin Dark Compatible Progress Bar */}
                     <div className="w-full bg-gray-200 dark:bg-gray-700 h-2 rounded-full overflow-hidden">
                       <div
                         className="bg-blue-500 h-2 rounded-full transition-all duration-500 ease-out"
@@ -334,17 +359,21 @@ export default function ProjectUploader() {
                     </div>
                   </div>
                 )}
+
                 {processing && (
                   <ProjectProgress steps={steps} currentStep={currentStep} />
                 )}
-                {/* Status Messages */}
+
+                {/* Error Message */}
                 {uploadError && (
-                  <div className="mt-3 p-3 bg-red-50 text-red-600 text-sm font-medium rounded border border-red-100">
+                  <div className="mt-3 p-3 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 text-sm font-medium rounded border border-red-200 dark:border-red-800">
                     Error: {uploadError}
                   </div>
                 )}
+
+                {/* Success Message */}
                 {uploadSuccess && (
-                  <div className="mt-3 p-3 bg-green-50 text-green-600 text-sm font-medium rounded border border-green-100">
+                  <div className="mt-3 p-3 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-sm font-medium rounded border border-green-200 dark:border-green-800">
                     {uploadSuccess}
                   </div>
                 )}
@@ -382,6 +411,7 @@ export default function ProjectUploader() {
                   "Select domain & database.",
                   "Upload your .zip project file.",
                   'Click "Upload & Deploy".',
+                  "Wait for completion & verify the site.",
                 ].map((step, index) => (
                   <li key={index} className="ml-6">
                     <span className="absolute flex items-center justify-center w-6 h-6 bg-blue-100 rounded-full -left-3 ring-8 ring-white dark:ring-gray-900 dark:bg-blue-900">
@@ -405,7 +435,9 @@ export default function ProjectUploader() {
                     <span className="flex-shrink-0 mr-2 font-bold text-blue-600 dark:text-blue-300">
                       1.
                     </span>
-                    <span>Choosing wrong domain or database can break other sites</span>
+                    <span>
+                      Choosing wrong domain or database can break other sites
+                    </span>
                   </p>
                   <p className="flex items-start text-sm text-blue-700 dark:text-blue-200">
                     <span className="flex-shrink-0 mr-2 font-bold text-blue-600 dark:text-blue-300">

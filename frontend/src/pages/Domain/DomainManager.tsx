@@ -1,4 +1,3 @@
-
 import { Loader } from "lucide-react";
 import moment from "moment";
 import { useState, useEffect, FormEvent } from "react";
@@ -14,7 +13,7 @@ import { Dropdown } from "../../components/ui/dropdown/Dropdown";
 import { DropdownItem } from "../../components/ui/dropdown/DropdownItem";
 import { Modal } from "../../components/ui/modal";
 import { MoreDotIcon } from "../../icons";
-import { domainManager } from "../../services/domainManager.service";
+import { domainManager, sslManager } from "../../services/domainManager.service";
 import { Domain } from "../../interfaces/domain.interface";
 
 export default function DomainManager() {
@@ -36,6 +35,43 @@ export default function DomainManager() {
   // State to track which row's dropdown is open
   const [openDropdownId, setOpenDropdownId] = useState<string | "">("");
   const [openAddDomainModal, setOpenAddDomainModal] = useState(false);
+  // State for controlling the modal
+  const [openSSLConfirmationModal, setOpenSSLConfirmationModal] =
+    useState(false);
+  const [sslSuccessMessage, setSSLSuccessMessage] = useState<string>("");
+  const [sslErrorMessage, setSSLErrorMessage] = useState<string>("");
+  const [isSSLRequesting, setIsSSLRequesting] = useState<boolean>(false);
+
+  // Function to close the SSL confirmation modal
+  const closeSSLConfirmationModal = () => {
+    setOpenSSLConfirmationModal(false);
+
+    // Optionally, reset any messages or loading state
+    setSSLSuccessMessage("");
+    setSSLErrorMessage("");
+    setIsSSLRequesting(false);
+  };
+
+  const handleConfirmSSL = async () => {
+  setIsSSLRequesting(true);
+  setSSLSuccessMessage("");
+  setSSLErrorMessage("");
+
+  try {
+    const data = await sslManager.checkAndIssueSSL(domainName);
+
+    if (data.error) {
+      setSSLErrorMessage(data.message || "Failed to setup SSL");
+    } else {
+      setSSLSuccessMessage(`SSL successfully set up for ${domainName}`);
+    }
+  } catch (err) {
+    setSSLErrorMessage("Something went wrong. Please try again.");
+  } finally {
+    setIsSSLRequesting(false);
+  }
+};
+
 
   const fetchDomains = async () => {
     if (!openAddDomainModal) setLoading(true);
@@ -106,19 +142,28 @@ export default function DomainManager() {
             onClose={closeDropdown}
             className="w-40 p-2"
           >
-            <DropdownItem
+            {/* <DropdownItem
               onItemClick={() => {
                 alert("Incomplete Editing section");
               }}
               className="flex w-full font-normal text-left text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
             >
               Edit
-            </DropdownItem>
-            <DropdownItem
+            </DropdownItem> */}
+            {/* <DropdownItem
               onItemClick={() => alert("Incomplete Deleting section")}
               className="flex w-full font-normal text-left text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
             >
               Delete
+            </DropdownItem> */}
+            <DropdownItem
+              onItemClick={()=>{
+                setDomainName(row.domain);
+                setOpenSSLConfirmationModal(true);
+              }}
+              className="flex w-full font-normal text-left text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
+            >
+              Setup SSL
             </DropdownItem>
           </Dropdown>
         </div>
@@ -186,7 +231,10 @@ export default function DomainManager() {
       setIsDomainCreating(true);
 
       try {
-        const data = await domainManager.addNewDomain(trimmedDomain, trimmedDomainNameProvider);
+        const data = await domainManager.addNewDomain(
+          trimmedDomain,
+          trimmedDomainNameProvider
+        );
         console.log(data);
 
         if (data?.error) {
@@ -298,7 +346,9 @@ export default function DomainManager() {
                       setDomainNameProvider(value);
 
                       if (domains.some((d) => d.domain === value)) {
-                        setDomainNameProviderError("Domain name already exists");
+                        setDomainNameProviderError(
+                          "Domain name already exists"
+                        );
                       } else {
                         setDomainNameProviderError("");
                       }
@@ -335,7 +385,12 @@ export default function DomainManager() {
                   <Button
                     size="sm"
                     variant="primary"
-                    disabled={!domainName || domainNameError !== "" || !domainNameProvider || domainNameProviderError !== ""}
+                    disabled={
+                      !domainName ||
+                      domainNameError !== "" ||
+                      !domainNameProvider ||
+                      domainNameProviderError !== ""
+                    }
                   >
                     {isDomainCreating ? (
                       <>
@@ -348,6 +403,66 @@ export default function DomainManager() {
                   </Button>
                 </div>
               </form>
+            </div>
+          </Modal>
+
+          {/* Confirm SSL Request */}
+          <Modal
+            isOpen={openSSLConfirmationModal}
+            onClose={closeSSLConfirmationModal}
+            className="max-w-[400px] m-4"
+          >
+            <div className="no-scrollbar relative w-full max-w-[400px] rounded-3xl bg-white p-6 dark:bg-gray-900 lg:p-8">
+              {/* Header */}
+              <div className="px-2">
+                <h4 className="mb-3 text-2xl font-semibold text-gray-800 dark:text-white/90">
+                  Confirm SSL Setup
+                </h4>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Are you sure you want to setup SSL for{" "}
+                  <span className="font-medium">{domainName}</span>?
+                </p>
+              </div>
+
+              {/* Success / Error Messages */}
+              {sslSuccessMessage && (
+                <div className="text-green-600 text-sm font-medium mt-4">
+                  {sslSuccessMessage}
+                </div>
+              )}
+              {sslErrorMessage && (
+                <div className="text-red-600 text-sm font-medium mt-4">
+                  {sslErrorMessage}
+                </div>
+              )}
+
+              {/* Footer Buttons */}
+              <div className="mt-6 flex items-center gap-3 lg:justify-end">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={closeSSLConfirmationModal}
+                  disabled={isSSLRequesting}
+                >
+                  Cancel
+                </Button>
+
+                <Button
+                  size="sm"
+                  variant="primary"
+                  disabled={isSSLRequesting}
+                  onClick={handleConfirmSSL}
+                >
+                  {isSSLRequesting ? (
+                    <>
+                      <Loader className="animate-spin w-4 h-4 mr-2" />
+                      Setting up...
+                    </>
+                  ) : (
+                    "Submit"
+                  )}
+                </Button>
+              </div>
             </div>
           </Modal>
         </div>
