@@ -373,7 +373,7 @@ export default function ProjectUploader() {
                 )}
 
                 {/* Success Message */}
-                {uploadSuccess && (
+                {uploadSuccess && currentStep != 4 && (
                   <div className="mt-3 p-3 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-sm font-medium rounded border border-green-200 dark:border-green-800">
                     {uploadSuccess}
                   </div>

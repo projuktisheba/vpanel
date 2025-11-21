@@ -24,10 +24,10 @@ func (app *Application) serve() error {
 	srv := &http.Server{
 		Addr:              fmt.Sprintf(":%d", app.config.Port),
 		Handler:           app.appRoutes,
-		IdleTimeout:       30 * time.Minute,  // optional increase
+		IdleTimeout:       60 * time.Minute,  // optional increase
 		ReadTimeout:       10 * time.Minute, // allow large uploads
 		ReadHeaderTimeout: 2 * time.Minute,
-		WriteTimeout:      30 * time.Minute, // allow long deployment
+		WriteTimeout:      60 * time.Minute, // allow long deployment
 	}
 
 	app.server = srv

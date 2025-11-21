@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -11,6 +12,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/projuktisheba/vpanel/backend/internal/dbrepo"
@@ -270,41 +272,42 @@ func (h *PHPHandler) DeploySite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Project Directory
 	projectDir := utils.GetPHPProjectDirectory(domainName)
 	h.infoLog.Println("Project Dir: ", projectDir)
-	// ======== Create Project ========
-	// step 1: run the php deployer script with arguments [domainName]
-	if err := deploy.DeployPHPSite(projectDir, user.GetCurrentUser().Username, domainName); err != nil {
-		h.errorLog.Println("ERROR_01_DeploySite: failed to deploy site:", err)
-		utils.ServerError(w, fmt.Errorf("failed to to deploy site: %w", err))
 
-		//update project status to error
-		_, _ = h.DB.ProjectRepo.UpdateProjectStatus(r.Context(), int64(projectID), models.ProjectStatusError)
-		return
-	}
-
-	// step 3: Update the project status to running
-	if _, err := h.DB.ProjectRepo.UpdateProjectStatus(r.Context(), int64(projectID), models.ProjectStatusRunning); err != nil {
-		h.errorLog.Println("ERROR_02_DeploySite: failed to update project status:", err)
-		utils.ServerError(w, fmt.Errorf("failed to update project status: %w", err))
-		return
-	}
-
-	// ======== Build Response ========
-	projectInfo, _ := h.DB.ProjectRepo.GetProjectByID(r.Context(), int64(projectID))
+	// Respond immediately to client
 	resp := struct {
-		Error   bool            `json:"error"`
-		Message string          `json:"message"`
-		Summary *models.Project `json:"summary"`
+		Error   bool   `json:"error"`
+		Message string `json:"message"`
 	}{
 		Error:   false,
-		Message: "Project deployed successfully",
-		Summary: projectInfo,
+		Message: "Deployment started",
 	}
+	utils.WriteJSON(w, http.StatusAccepted, resp)
 
-	utils.WriteJSON(w, http.StatusOK, resp)
+	// Run deployment asynchronously
+	go func(projectID int, domain, dir string) {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+		defer cancel()
+
+		// Step 1: Deploy the PHP site (script execution)
+		if err := deploy.DeployPHPSite(ctx, dir, user.GetCurrentUser().Username, domain); err != nil {
+			h.errorLog.Println("ERROR_01_DeploySite:", err)
+			_, _ = h.DB.ProjectRepo.UpdateProjectStatus(context.Background(), int64(projectID), models.ProjectStatusError)
+			return
+		}
+
+		// Step 2: Update project status to running
+		if _, err := h.DB.ProjectRepo.UpdateProjectStatus(context.Background(), int64(projectID), models.ProjectStatusRunning); err != nil {
+			h.errorLog.Println("ERROR_02_DeploySite:", err)
+			return
+		}
+
+		h.infoLog.Println("Deployment finished for project:", domain)
+
+	}(projectID, domainName, projectDir)
 }
+
 func (h *PHPHandler) ListProjects(w http.ResponseWriter, r *http.Request) {
 	// Get optional query param
 	framework := strings.TrimSpace(r.URL.Query().Get("framework"))
