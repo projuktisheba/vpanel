@@ -211,14 +211,16 @@ export default function ProjectUploader() {
 
       // ====== Step 4: Issue SSL ======
       try {
-        setCurrentStep(4);
+        
         const sslResult = await sslManager.issueSSL(projectName);
 
         if (sslResult.error) {
           setStepError(4, true);
+          
           setUploadError("SSL setup failed: " + sslResult.message);
         } else {
           setStepError(4, false);
+          setCurrentStep(4);
           setUploadSuccess(
             (prev) => prev + " SSL setup completed successfully!"
           );
@@ -235,7 +237,6 @@ export default function ProjectUploader() {
       setUploadError("Project creation failed. Check console.");
     } finally {
       setUploading(false);
-      setProcessing(false);
       setProgress(null);
     }
   };
@@ -375,6 +376,20 @@ export default function ProjectUploader() {
                 {uploadSuccess && (
                   <div className="mt-3 p-3 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-sm font-medium rounded border border-green-200 dark:border-green-800">
                     {uploadSuccess}
+                  </div>
+                )}
+                {/* Success Message */}
+                {currentStep==4 && (
+                  <div className="mt-3 p-3 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-sm font-medium rounded border border-green-200 dark:border-green-800">
+                    {uploadSuccess}
+                    visit at <a
+                    href={`https://${projectName}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 dark:text-blue-400 underline"
+                  >
+                    https://{projectName}
+                  </a>
                   </div>
                 )}
               </div>
