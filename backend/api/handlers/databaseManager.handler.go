@@ -266,9 +266,26 @@ func (h *DatabaseManagerHandler) ListMySQLDatabases(w http.ResponseWriter, r *ht
 		return
 	}
 
-	// Fetch database stats
-	for _, d := range databases {
-		d.DatabaseSizeMB, d.TableCount, _ = h.DB.MySQL.GetMySQLDatabaseStats(r.Context(), h.mysqlRootDSN, d.DBName)
+	// Fetch database stats in batch (single query instead of N queries)
+	if len(databases) > 0 {
+		dbNames := make([]string, len(databases))
+		for i, d := range databases {
+			dbNames[i] = d.DBName
+		}
+
+		statsMap, err := h.DB.MySQL.GetAllMySQLDatabaseStats(r.Context(), h.mysqlRootDSN, dbNames)
+		if err != nil {
+			h.errorLog.Println("ERROR_02_ListMySQLDatabases: failed to fetch database stats:", err)
+			// Don't fail the entire request, just log the error
+		} else {
+			// Apply stats to each database
+			for _, d := range databases {
+				if stats, ok := statsMap[d.DBName]; ok {
+					d.DatabaseSizeMB = stats.SizeMB
+					d.TableCount = stats.TableCount
+				}
+			}
+		}
 	}
 
 	// Prepare successful response

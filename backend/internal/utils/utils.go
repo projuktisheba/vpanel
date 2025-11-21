@@ -39,10 +39,6 @@ func ReadJSON(w http.ResponseWriter, r *http.Request, data any) error {
 
 // writeJSON writes arbitrary data out as json
 func WriteJSON(w http.ResponseWriter, status int, data any, headers ...http.Header) error {
-	out, err := json.MarshalIndent(data, "", "    ")
-	if err != nil {
-		return err
-	}
 	//add the headers if exists
 	if len(headers) > 0 {
 		for i, v := range headers[0] {
@@ -52,8 +48,10 @@ func WriteJSON(w http.ResponseWriter, status int, data any, headers ...http.Head
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	w.Write(out)
-	return nil
+	
+	// Use json.NewEncoder for better performance - it writes directly to the response writer
+	// without allocating an intermediate buffer
+	return json.NewEncoder(w).Encode(data)
 }
 
 // badRequest sends a JSON response with the status http.StatusBadRequest, describing the error
