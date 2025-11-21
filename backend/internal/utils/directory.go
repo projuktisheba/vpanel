@@ -10,12 +10,12 @@ import (
 // GetWordpressProjectDirectory returns the full path for a WordPress project
 // based on the provided domain name.
 // It also empty string when error occurs
-func GetWordpressProjectDirectory(domainName string) string {
+func GetWordpressProjectDirectory() string {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return ""
 	}
-	return filepath.Join(homeDir, "projuktisheba", "bin", "wordpress", domainName)
+	return filepath.Join(homeDir, "projuktisheba", "bin", "wordpress")
 }
 
 // GetWordpressProjectName returns a unique name for a WordPress project

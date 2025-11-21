@@ -52,10 +52,10 @@ func (h *WordPressHandler) DeploySite(w http.ResponseWriter, r *http.Request) {
 	}
 	//project status
 	if req.Status == "" {
-		req.Status = "build"
+		req.Status = models.ProjectStatusInit
 	}
 
-	projectDir := utils.GetWordpressProjectDirectory(req.DomainName)
+	projectDir := utils.GetWordpressProjectDirectory()
 	projectUniqueName := utils.GetWordpressProjectName(req.DomainName)
 
 	//update object
@@ -75,12 +75,18 @@ func (h *WordPressHandler) DeploySite(w http.ResponseWriter, r *http.Request) {
 	// step:2 Call PHP builder function
 	if err := deploy.DeployWordPress(req.DomainName, req.ProjectDirectory); err != nil {
 		h.errorLog.Println("ERROR_03_DeploySite: failed to create project:", err)
+
+		//silently update project status to Error
+		req.Status = models.ProjectStatusError
+		h.DB.ProjectRepo.UpdateProjectStatus(r.Context(), req.ID, req.Status)
+
+		//send the response
 		utils.ServerError(w, fmt.Errorf("failed to create project: %w", err))
 		return
 	}
 
 	// step:3 Update the project status
-	req.Status = "active"
+	req.Status = models.ProjectStatusRunning
 	if _, err := h.DB.ProjectRepo.UpdateProjectStatus(r.Context(), req.ID, req.Status); err != nil {
 		h.errorLog.Println("ERROR_04_DeploySite: failed to update project status:", err)
 		utils.ServerError(w, fmt.Errorf("failed to update project status: %w", err))
@@ -98,52 +104,6 @@ func (h *WordPressHandler) DeploySite(w http.ResponseWriter, r *http.Request) {
 		Error:   false,
 		Message: "Project created successfully",
 		Summary: req,
-	}
-
-	utils.WriteJSON(w, http.StatusOK, resp)
-}
-
-func (h *WordPressHandler) UpdateProject(w http.ResponseWriter, r *http.Request) {
-	var req models.Project
-
-	if err := utils.ReadJSON(w, r, &req); err != nil {
-		h.errorLog.Println("ERROR_01_UpdateProject: invalid JSON:", err)
-		utils.BadRequest(w, fmt.Errorf("invalid request payload: %w", err))
-		return
-	}
-
-	// Trim spaces
-	req.ProjectName = strings.TrimSpace(req.ProjectName)
-	req.ProjectFramework = strings.TrimSpace(req.ProjectFramework)
-
-	if req.ProjectName == "" {
-		utils.BadRequest(w, errors.New("projectName is required"))
-		return
-	}
-
-	if req.ProjectFramework == "" {
-		utils.BadRequest(w, errors.New("projectFramework is required"))
-		return
-	}
-
-	if req.Status == "" {
-		req.Status = "active"
-	}
-
-	if err := h.DB.ProjectRepo.UpdateProject(r.Context(), &req); err != nil {
-		h.errorLog.Println("ERROR_02_UpdateProject: failed to update project:", err)
-		utils.ServerError(w, fmt.Errorf("failed to update project: %w", err))
-		return
-	}
-
-	resp := struct {
-		Error   bool            `json:"error"`
-		Message string          `json:"message"`
-		Project *models.Project `json:"project"`
-	}{
-		Error:   false,
-		Message: "Project updated successfully",
-		Project: &req,
 	}
 
 	utils.WriteJSON(w, http.StatusOK, resp)
@@ -196,11 +156,155 @@ func (h *WordPressHandler) UpdateProjectStatus(w http.ResponseWriter, r *http.Re
 
 	utils.WriteJSON(w, http.StatusOK, resp)
 }
-func (h *WordPressHandler) DeleteProject(w http.ResponseWriter, r *http.Request) {
+
+func (h *WordPressHandler) GetSiteStatus(w http.ResponseWriter, r *http.Request) {
 	idStr := r.URL.Query().Get("project_id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
 		utils.BadRequest(w, errors.New("invalid project ID"))
+		return
+	}
+	//Get the project info
+	project, err := h.DB.ProjectRepo.GetProjectByID(r.Context(), int64(id))
+	if err != nil {
+		h.errorLog.Println("ERROR_01_GetSiteStatus: failed to get project information:", err)
+		utils.ServerError(w, fmt.Errorf("Site information not found"))
+		return
+	}
+
+	var resp struct {
+		Error      bool   `json:"error"`
+		Message    string `json:"message"`
+		SiteStatus string `json:"siteStatus"`
+	}
+	resp.Error = false
+	resp.Message = "Site status: " + project.Status
+	resp.SiteStatus = project.Status
+
+	utils.WriteJSON(w, http.StatusOK, resp)
+}
+
+func (h *WordPressHandler) SuspendSite(w http.ResponseWriter, r *http.Request) {
+	idStr := r.URL.Query().Get("project_id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		utils.BadRequest(w, errors.New("invalid project ID"))
+		return
+	}
+	//Get the project info
+	var project *models.Project
+	project, err = h.DB.ProjectRepo.GetProjectByID(r.Context(), int64(id))
+	if err != nil {
+		h.errorLog.Println("ERROR_01_SuspendSite: failed to suspend project:", err)
+		utils.ServerError(w, fmt.Errorf("Site information not found"))
+		return
+	}
+
+	//Only Wordpress site can be suspended
+	if project.ProjectFramework != "Wordpress" {
+		utils.ServerError(w, fmt.Errorf("Only Wordpress site can be suspended"))
+		return
+	}
+	//Only running site can be suspended
+	if project.Status != models.ProjectStatusRunning {
+		utils.ServerError(w, fmt.Errorf("Only running site can be suspended"))
+		return
+	}
+
+	//suspend wordpress site
+	if err := deploy.SuspendWordpressSite(project.ProjectName); err != nil {
+		h.errorLog.Println("ERROR_02_SuspendSite: failed to suspend project:", err)
+		utils.ServerError(w, fmt.Errorf("failed to suspend project: %w", err))
+		return
+	}
+
+	//update status to suspended
+	if _, err := h.DB.ProjectRepo.UpdateProjectStatus(r.Context(), id, models.ProjectStatusSuspended); err != nil {
+		h.errorLog.Println("ERROR_01_SuspendSite: failed to suspend project:", err)
+		utils.ServerError(w, fmt.Errorf("failed to suspend project: %w", err))
+		return
+	}
+
+	resp := models.Response{
+		Error:   false,
+		Message: "Project suspended successfully",
+	}
+
+	utils.WriteJSON(w, http.StatusOK, resp)
+}
+
+func (h *WordPressHandler) RestartSite(w http.ResponseWriter, r *http.Request) {
+	idStr := r.URL.Query().Get("project_id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		utils.BadRequest(w, errors.New("invalid project ID"))
+		return
+	}
+	//Get the project info
+	var project *models.Project
+	project, err = h.DB.ProjectRepo.GetProjectByID(r.Context(), int64(id))
+	if err != nil {
+		h.errorLog.Println("ERROR_01_RestartSite: failed to restart project:", err)
+		utils.ServerError(w, fmt.Errorf("failed to restart project: %w", err))
+		return
+	}
+	//Only Wordpress site can be restarted
+	if project.ProjectFramework != "Wordpress" {
+		utils.ServerError(w, fmt.Errorf("Only Wordpress site can be restarted"))
+		return
+	}
+	//Only suspended site can be restarted
+	if project.Status != models.ProjectStatusSuspended {
+		utils.ServerError(w, fmt.Errorf("Only suspended project can be restarted"))
+		return
+	}
+
+	//restart wordpress site
+	if err := deploy.RestartWordpressSite(project.ProjectName); err != nil {
+		h.errorLog.Println("ERROR_02_RestartSite: failed to restart project:", err)
+		utils.ServerError(w, fmt.Errorf("failed to restart project: %w", err))
+		return
+	}
+
+	//update status to suspended
+	if _, err := h.DB.ProjectRepo.UpdateProjectStatus(r.Context(), id, models.ProjectStatusRunning); err != nil {
+		h.errorLog.Println("ERROR_01_RestartSite: failed to restart project:", err)
+		utils.ServerError(w, fmt.Errorf("failed to restart project: %w", err))
+		return
+	}
+
+	resp := models.Response{
+		Error:   false,
+		Message: "Project restarted successfully",
+	}
+
+	utils.WriteJSON(w, http.StatusOK, resp)
+}
+
+func (h *WordPressHandler) DeleteSite(w http.ResponseWriter, r *http.Request) {
+	idStr := r.URL.Query().Get("project_id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		utils.BadRequest(w, errors.New("invalid project ID"))
+		return
+	}
+	//Get the project info
+	var project *models.Project
+	project, err = h.DB.ProjectRepo.GetProjectByID(r.Context(), int64(id))
+	if err != nil {
+		h.errorLog.Println("ERROR_01_DeleteProject: failed to delete project:", err)
+		utils.ServerError(w, fmt.Errorf("failed to delete project: %w", err))
+		return
+	}
+	//Only Wordpress site can be deleted
+	if project.ProjectFramework != "Wordpress" {
+		utils.ServerError(w, fmt.Errorf("Only Wordpress site can be deleted"))
+		return
+	}
+	//delete the project files and users
+	if err := deploy.DeleteWordpressSite(project.ProjectName,project.DomainName, project.ProjectDirectory); err != nil {
+		h.errorLog.Println("ERROR_02_DeleteProject: failed to delete project:", err)
+		utils.ServerError(w, fmt.Errorf("failed to delete project: %w", err))
 		return
 	}
 
