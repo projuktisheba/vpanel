@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -223,7 +224,7 @@ func (h *DatabaseManagerHandler) DeleteMySQLDatabase(w http.ResponseWriter, r *h
 	}
 
 	// ----------------------------------------
-	// 3 Soft delete from registry
+	// 3 delete from registry
 	// ----------------------------------------
 	err = h.DB.DBRegistry.DeleteDatabase(r.Context(), registryDB.ID)
 	if err != nil {
@@ -237,7 +238,7 @@ func (h *DatabaseManagerHandler) DeleteMySQLDatabase(w http.ResponseWriter, r *h
 	homeDir, _ := os.UserHomeDir()
 	sqlPath := filepath.Join(homeDir, "projuktisheba", "templates", "databases", "mysql", fmt.Sprintf("%s.sql", registryDB.DBName))
 	// Soft delete (ignore errors)
-	_ = os.Remove(sqlPath)
+	_ = exec.Command("sudo", []string{"rm", sqlPath}...)
 
 	// ----------------------------------------
 	// 4 Response
@@ -245,6 +246,51 @@ func (h *DatabaseManagerHandler) DeleteMySQLDatabase(w http.ResponseWriter, r *h
 	var resp models.Response
 	resp.Error = false
 	resp.Message = fmt.Sprintf("Database '%s' deleted successfully", dbName)
+
+	utils.WriteJSON(w, http.StatusOK, resp)
+}
+
+// ResetMySQLDatabase connects to the specified MySQL database and truncates all tables,
+// deleting all data and resetting auto-increment keys to 1.
+// It reads db_name from the query parameter list
+func (h *DatabaseManagerHandler) ResetMySQLDatabase(w http.ResponseWriter, r *http.Request) {
+	dbName := strings.TrimSpace(r.URL.Query().Get("db_name"))
+	if dbName == "" {
+		utils.BadRequest(w, fmt.Errorf("invalid request payload: database_name is required"))
+		return
+	}
+
+	// ----------------------------------------
+	// 1 Check if database exists in registry
+	// ----------------------------------------
+	database, err := h.DB.DBRegistry.GetDatabaseByName(r.Context(), dbName)
+	if err != nil {
+		utils.BadRequest(w, fmt.Errorf("database '%s' does not exist", dbName))
+		return
+	}
+
+	if database.DBType != "mysql" {
+		utils.BadRequest(w, fmt.Errorf("database %s must be of type MySQL", database.DBName))
+		return
+	}
+
+	// ----------------------------------------
+	// 2 Drop the database from MySQL
+	// ----------------------------------------
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true", database.User.Username, database.User.Password, "localhost", "3306", dbName)
+
+	err = h.DB.MySQL.ResetMySQLDatabase(dsn, dbName)
+	if err != nil {
+		utils.ServerError(w, fmt.Errorf("failed to reset database: %w", err))
+		return
+	}
+
+	// ----------------------------------------
+	// 4 Response
+	// ----------------------------------------
+	var resp models.Response
+	resp.Error = false
+	resp.Message = fmt.Sprintf("Database '%s' cleared successfully", dbName)
 
 	utils.WriteJSON(w, http.StatusOK, resp)
 }

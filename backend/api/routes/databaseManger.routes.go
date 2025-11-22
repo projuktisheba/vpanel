@@ -12,6 +12,7 @@ func databaseRegistryRoutes() *chi.Mux {
 	mux.Post("/mysql/create-database", handlerRepo.DBManager.CreateMySQLDatabase)
 	mux.Post("/mysql/import-database", handlerRepo.DBManager.ImportMySQLDatabase)
 	mux.Delete("/mysql/delete-database", handlerRepo.DBManager.DeleteMySQLDatabase)
+	mux.Delete("/mysql/reset-database", handlerRepo.DBManager.ResetMySQLDatabase)
 	mux.Get("/mysql/users", handlerRepo.DBManager.ListMySQLUsers)
 	mux.Post("/mysql/create-user", handlerRepo.DBManager.CreateMySQLUser)
 	// mux.Patch("/mysql/grant", handlerRepo.DB.GrantPrivileges)

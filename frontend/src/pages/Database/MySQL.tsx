@@ -10,10 +10,7 @@ import Select from "../../components/form/Select";
 import { EyeCloseIcon, MoreDotIcon } from "../../icons";
 import { databaseManager } from "../../services/databaseManager.service";
 import DataTable from "../../components/tables/BasicTables/DataTable";
-import {
-  Database,
-  DBUser,
-} from "../../interfaces/database.interface";
+import { Database, DBUser } from "../../interfaces/database.interface";
 import { Dropdown } from "../../components/ui/dropdown/Dropdown";
 import { DropdownItem } from "../../components/ui/dropdown/DropdownItem";
 import { Modal } from "../../components/ui/modal";
@@ -21,7 +18,7 @@ import AlertModal from "../../components/ui/modal/AlertModal";
 import moment from "moment";
 import FileInput from "../../components/form/input/FileInput";
 
-import { EyeIcon, Loader } from "lucide-react";
+import { DatabaseIcon, EyeIcon, Loader, RotateCcw, Trash2, Upload } from "lucide-react";
 import Tabs from "../UiElements/Tabs";
 import Form from "../../components/form/Form";
 import { Preloader } from "../../components/preloader/Preloader";
@@ -44,6 +41,11 @@ export default function MySQL() {
   const [databases, setDatabases] = useState<Database[]>([]);
   const [importDatabase, setImportDatabase] = useState<Database | null>(null);
 
+  // clear database
+  const [clearTargetDatabase, setClearTargetDatabase] = useState<Database|null>(null);
+  const [isDBClearing, setIsDBClearing] = useState<boolean>(false);
+  const [clearDatabaseSuccess, setClearDatabaseSuccess] = useState<string>("");
+  const [clearDatabaseError, setClearDatabaseError] = useState<string>("");
   // Database Users
   const [users, setUsers] = useState<DBUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -59,7 +61,7 @@ export default function MySQL() {
   const [openDropdownId, setOpenDropdownId] = useState<string | "">("");
   const [deleteTargetDatabase, setDeleteTargetDatabase] =
     useState<Database | null>(null);
-     const [isDBDeleting, setIsDBDeleting] = useState(false);
+  const [isDBDeleting, setIsDBDeleting] = useState(false);
   const [openCreateDBModal, setOpenCreateDBModal] = useState(false);
   const [openCreateUserModal, setOpenCreateUserModal] = useState(false);
   const [openImportDatabaseModal, setOpenImportDatabaseModal] = useState(false);
@@ -73,15 +75,13 @@ export default function MySQL() {
   const [newUserCreateError, setNewUserCreateError] = useState("");
   //import database via .sql
   const [sqlFile, setSqlFile] = useState<File | null>(null);
-   const [isDBImporting, setIsDBImporting] = useState(false);
+  const [isDBImporting, setIsDBImporting] = useState(false);
   const [importDatabaseSuccess, setImportDatabaseSuccess] = useState("");
   const [importDatabaseError, setImportDatabaseError] = useState("");
-  
 
   // Fetch available users
   const fetchUsers = async () => {
-    
-    if (!openCreateDBModal && !openCreateUserModal ) setLoading(true);
+    if (!openCreateDBModal && !openCreateUserModal) setLoading(true);
     try {
       const res = await databaseManager.listMySQLUsers();
       // res here is the whole API response, so extract the databases array
@@ -168,7 +168,7 @@ export default function MySQL() {
   }));
 
   const fetchDatabases = async () => {
-    if (!openCreateDBModal && openCreateUserModal ) setLoading(true);
+    if (!openCreateDBModal && openCreateUserModal) setLoading(true);
     try {
       const res = await databaseManager.listMySQLDB();
       // res here is the whole API response, so extract the databases array
@@ -237,22 +237,37 @@ export default function MySQL() {
           <Dropdown
             isOpen={openDropdownId === row.dbName}
             onClose={closeDropdown}
-            className="w-40 p-2"
+            className="w-max space-y-1 p-2 m-2"
           >
             <DropdownItem
               onItemClick={() => {
                 setImportDatabase(row);
                 setOpenImportDatabaseModal(true);
               }}
-              className="flex w-full font-normal text-left text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
+              className="flex w-full font-medium text-left text-gray-500 border rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
             >
-              Import
+              <span className="inline flex gap-2">
+                <Upload size={16} />
+                Import Database
+              </span>
+            </DropdownItem>
+            <DropdownItem
+              onItemClick={() => {openClearDatabaseModal(row)}}
+              className="flex w-full font-medium text-left text-gray-500 border rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
+            >
+              <span className="inline flex gap-2">
+                <DatabaseIcon size={16} />
+                Clear Database
+              </span>
             </DropdownItem>
             <DropdownItem
               onItemClick={() => openDeleteDatabaseModal(row)}
-              className="flex w-full font-normal text-left text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
+              className="flex w-full font-medium text-left text-gray-500 border rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
             >
-              Delete
+              <span className="inline flex gap-2">
+                <Trash2 size={16} />
+                Delete
+              </span>
             </DropdownItem>
           </Dropdown>
         </div>
@@ -263,7 +278,7 @@ export default function MySQL() {
   // Table search options
   const dbSearchOptions = [
     { value: "dbName", label: "Database" },
-    { value: "user.username", label: "User" },    
+    { value: "user.username", label: "User" },
   ];
 
   // ===================== Handlers =====================
@@ -278,6 +293,39 @@ export default function MySQL() {
     setOpenDropdownId("");
   }
 
+
+  // Clear database handlers
+  function openClearDatabaseModal(db: Database) {
+    setClearTargetDatabase(db);
+  }
+  function closeClearDatabaseModal() {
+    setClearTargetDatabase(null);
+  }
+ const handleConfirmClearDatabase = async () => {
+    if (!clearTargetDatabase) return;
+
+    setIsDBClearing(true);
+
+    try {
+      const resp = await databaseManager.clearMySQLDB(
+        clearTargetDatabase.dbName
+      );
+
+      if (resp?.error) {
+        setClearDatabaseError(resp?.message)
+        return; // stop here
+      }
+
+      // Success
+      setClearDatabaseSuccess(resp?.message)
+      await fetchDatabases(); // refresh list
+    } catch (err: any) {
+      console.error("Failed to delete database:", err);
+      setClearDatabaseError(err)
+    } finally {
+      setIsDBClearing(false);
+    }
+  };
   //handleDelete shows a waring to the user and then delete the database
   function openDeleteDatabaseModal(db: Database) {
     setDeleteTargetDatabase(db);
@@ -286,6 +334,7 @@ export default function MySQL() {
   function closeDeleteDatabaseModal() {
     setDeleteTargetDatabase(null);
   }
+  
 
   const handleConfirmDeleteDatabase = async () => {
     if (!deleteTargetDatabase) return;
@@ -298,7 +347,6 @@ export default function MySQL() {
       );
 
       if (resp?.error) {
-        
         setAlertModalTitle("Error Deleting Database");
         setAlertModalMessage(resp.message || "Failed to delete the database.");
         setAlertModalType("error");
@@ -487,7 +535,7 @@ export default function MySQL() {
     }
 
     try {
-      setIsDBImporting(true)
+      setIsDBImporting(true);
       const formData = new FormData();
       formData.append("dbName", importDatabase.dbName); // database name
       formData.append("sqlFile", sqlFile); // upload file
@@ -499,20 +547,20 @@ export default function MySQL() {
         setImportDatabaseSuccess(
           response.message || "Database imported successfully!"
         );
-        fetchDatabases()
+        fetchDatabases();
       } else {
         setImportDatabaseError(response.message || "Import failed.");
       }
     } catch (err: any) {
       console.error("Import failed:", err);
       setImportDatabaseError(err?.message || "An unexpected error occurred.");
-    } finally{
-      setIsDBImporting(false)
+    } finally {
+      setIsDBImporting(false);
     }
   };
 
   if (loading) {
-    return <Preloader/>
+    return <Preloader />;
   }
 
   return (
@@ -592,7 +640,7 @@ export default function MySQL() {
                 {/* Database Name */}
                 <div>
                   <Label>
-                    Database Name {" "}
+                    Database Name{" "}
                     <span className="text-red-700 font-medium"> *</span>
                   </Label>
                   <Input
@@ -801,18 +849,83 @@ export default function MySQL() {
                   onClick={handleConfirmDeleteDatabase}
                 >
                   {isDBDeleting ? (
-                      <>
-                        <Loader className="animate-spin w-4 h-4 mr-2" />
-                        Deleting...
-                      </>
-                    ) : (
-                      "Delete Database"
-                    )}
-                  
+                    <>
+                      <Loader className="animate-spin w-4 h-4 mr-2" />
+                      Deleting...
+                    </>
+                  ) : (
+                    "Delete Database"
+                  )}
                 </Button>
               </div>
             </div>
           </Modal>
+{/* Confirmation dialog for clearing database data */}
+<Modal
+  isOpen={clearTargetDatabase != null}
+  onClose={closeClearDatabaseModal}
+  className="max-w-[500px] m-4"
+>
+  <div className="no-scrollbar relative w-full max-w-[500px] rounded-3xl bg-white p-6 dark:bg-gray-900 lg:p-8">
+    {/* Header */}
+    <div className="px-2">
+      <h4 className="mb-3 text-2xl font-semibold text-gray-800 dark:text-white/90">
+        Clear Database
+      </h4>
+      <p className="text-sm text-gray-500 dark:text-gray-400">
+        You are about to clear all data from the database{" "}
+        <span className="font-semibold text-yellow-600">
+          {clearTargetDatabase?.dbName}
+        </span>
+        . <br />
+        This action is irreversible and will delete all records from all
+        tables, but the database and schema will remain intact.
+      </p>
+    </div>
+
+    {/* Warning Section */}
+    <div className="mt-6 px-2">
+      <div className="rounded-xl border border-yellow-300 bg-yellow-50 p-4 dark:border-yellow-700 dark:bg-yellow-900/20">
+        <h5 className="mb-2 text-lg font-medium text-yellow-700 dark:text-yellow-400">
+          ⚠️ Warning
+        </h5>
+        <p className="text-sm text-yellow-600 dark:text-yellow-300">
+          Clearing this database will remove all data permanently. This cannot
+          be undone. Make sure you have backups if needed.
+        </p>
+      </div>
+    </div>
+
+    {/* Footer Buttons */}
+    <div className="mt-8 flex items-center gap-3 px-2 lg:justify-end">
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={closeClearDatabaseModal}
+      >
+        Cancel
+      </Button>
+
+      <Button
+        size="sm"
+        variant="primary"
+        disabled={!clearTargetDatabase || isDBClearing}
+        className="bg-yellow-500 hover:bg-yellow-600 text-black"
+        onClick={handleConfirmClearDatabase}
+      >
+        {isDBClearing ? (
+          <>
+            <Loader className="animate-spin w-4 h-4 mr-2" />
+            Clearing...
+          </>
+        ) : (
+          "Clear Database"
+        )}
+      </Button>
+    </div>
+  </div>
+</Modal>
+
 
           {/* Create MySQL User Modal */}
           <Modal

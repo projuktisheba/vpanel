@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	_ "github.com/go-sql-driver/mysql"
 )
@@ -186,6 +187,96 @@ func (mysql *MySQLManagerRepo) DropMySQLDatabase(rootDSN, dbName, username strin
 	return nil
 }
 
+// resetDatabase connects to the specified MySQL database and truncates all tables,
+// deleting all data and resetting auto-increment keys to 1.
+//
+// WARNING: This operation is irreversible and will permanently destroy data.
+func (mysql *MySQLManagerRepo)ResetMySQLDatabase(dsn string, dbName string) error {
+	log.Printf("Attempting to connect to database: %s", dbName)
+
+	// 1. Establish the database connection
+	db, err := sql.Open("mysql", dsn)
+	if err != nil {
+		return fmt.Errorf("failed to open database connection: %w", err)
+	}
+	defer db.Close()
+
+	// Set connection pool limits (recommended for robustness)
+	db.SetConnMaxLifetime(time.Minute * 3)
+	db.SetMaxOpenConns(10)
+	db.SetMaxIdleConns(10)
+
+	// Verify the connection is valid
+	if err = db.Ping(); err != nil {
+		return fmt.Errorf("failed to ping database: %w", err)
+	}
+
+	log.Printf("Successfully connected to database: %s", dbName)
+
+	// 2. Query all base tables in the specified database schema
+	tableQuery := `
+		SELECT table_name
+		FROM information_schema.tables
+		WHERE table_schema = ? AND table_type = 'BASE TABLE'
+		ORDER BY table_name;
+	`
+	rows, err := db.Query(tableQuery, dbName)
+	if err != nil {
+		return fmt.Errorf("failed to query table names: %w", err)
+	}
+	defer rows.Close()
+
+	var tables []string
+	var tableName string
+	for rows.Next() {
+		if err := rows.Scan(&tableName); err != nil {
+			return fmt.Errorf("failed to scan table name: %w", err)
+		}
+		// Skip standard migration/internal tables if necessary (e.g., if using a framework)
+		// For this generic function, we process all base tables found.
+		tables = append(tables, tableName)
+	}
+
+	if err = rows.Err(); err != nil {
+		return fmt.Errorf("error iterating over table names: %w", err)
+	}
+
+	if len(tables) == 0 {
+		log.Printf("No tables found in database '%s'. Nothing to do.", dbName)
+		return nil
+	}
+
+	log.Printf("Found %d tables to truncate: %v", len(tables), tables)
+
+	// 3. Truncate each table within a transaction for safety
+	tx, err := db.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+
+	for _, t := range tables {
+		// TRUNCATE TABLE is a DDL command, and while it's technically atomic,
+		// wrapping multiple truncates in a transaction ensures all tables are attempted
+		// or none are committed (though TRUNCATE doesn't fully respect transactions
+		// like DELETE does, it's good practice).
+		truncateStmt := fmt.Sprintf("TRUNCATE TABLE `%s`", t)
+		log.Printf("Executing: %s", truncateStmt)
+
+		if _, err := tx.Exec(truncateStmt); err != nil {
+			// Rollback if any table truncation fails
+			tx.Rollback()
+			return fmt.Errorf("failed to truncate table '%s': %w", t, err)
+		}
+	}
+
+	// 4. Commit the operation
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	log.Printf("Successfully truncated all %d tables in database '%s'. Data deleted and auto-increment keys reset to 1.", len(tables), dbName)
+	return nil
+}
 
 // Helper: check if a database exists
 func databaseExists(db *sql.DB, dbName string) (bool, error) {
