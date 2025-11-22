@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	_ "github.com/go-sql-driver/mysql"
 )
@@ -286,4 +287,81 @@ func userExists(db *sql.DB, username string) (bool, error) {
 		return false, err
 	}
 	return count > 0, nil
+}
+
+// GetAllMySQLDatabaseStats retrieves stats for multiple databases in a single query
+// This is much more efficient than calling GetMySQLDatabaseStats in a loop
+// Returns: map[dbName]struct{sizeMB, tableCount}, error
+func (mysql *MySQLManagerRepo) GetAllMySQLDatabaseStats(ctx context.Context, dsn string, dbNames []string) (map[string]struct {
+	SizeMB     float64
+	TableCount int
+}, error) {
+	if len(dbNames) == 0 {
+		return make(map[string]struct {
+			SizeMB     float64
+			TableCount int
+		}), nil
+	}
+
+	// Connect to MySQL once for all databases
+	db, err := sql.Open("mysql", dsn)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect: %w", err)
+	}
+	defer db.Close()
+
+	// Build IN clause for all database names
+	placeholders := make([]string, len(dbNames))
+	args := make([]interface{}, len(dbNames))
+	for i, name := range dbNames {
+		placeholders[i] = "?"
+		args[i] = name
+	}
+
+	// Single query to get all stats at once
+	query := fmt.Sprintf(`
+		SELECT 
+			table_schema,
+			ROUND(IFNULL(SUM(data_length + index_length) / 1024 / 1024, 0), 2) AS size_mb,
+			COUNT(*) AS table_count
+		FROM information_schema.tables
+		WHERE table_schema IN (%s)
+		GROUP BY table_schema
+	`, strings.Join(placeholders, ","))
+
+	rows, err := db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("query error: %w", err)
+	}
+	defer rows.Close()
+
+	// Parse results into map
+	results := make(map[string]struct {
+		SizeMB     float64
+		TableCount int
+	})
+
+	for rows.Next() {
+		var dbName string
+		var sizeMB float64
+		var tableCount int
+
+		if err := rows.Scan(&dbName, &sizeMB, &tableCount); err != nil {
+			return nil, fmt.Errorf("scan error: %w", err)
+		}
+
+		results[dbName] = struct {
+			SizeMB     float64
+			TableCount int
+		}{
+			SizeMB:     sizeMB,
+			TableCount: tableCount,
+		}
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows error: %w", err)
+	}
+
+	return results, nil
 }

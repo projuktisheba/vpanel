@@ -2,6 +2,7 @@ package utils
 
 import (
 	"archive/zip"
+	"bufio"
 	"errors"
 	"fmt"
 	"io"
@@ -18,13 +19,20 @@ func MergeChunks(tmpDir, destPath string, totalChunks int) error {
 	}
 	defer dest.Close()
 
+	// Use buffered writer for better performance on large files
+	bufWriter := bufio.NewWriter(dest)
+	defer bufWriter.Flush()
+
 	for i := 0; i < totalChunks; i++ {
 		chunkPath := filepath.Join(tmpDir, fmt.Sprintf("chunk_%d", i))
 		chunk, err := os.Open(chunkPath)
 		if err != nil {
 			return err
 		}
-		if _, err := io.Copy(dest, chunk); err != nil {
+		
+		// Use buffered reader for better performance
+		bufReader := bufio.NewReader(chunk)
+		if _, err := io.Copy(bufWriter, bufReader); err != nil {
 			chunk.Close()
 			return err
 		}
@@ -85,7 +93,16 @@ func ExtractZip(zipPath, destDir string) error {
 			return err
 		}
 
-		if _, err := io.Copy(outFile, rc); err != nil {
+		// Use buffered writer for better performance when extracting large files
+		bufWriter := bufio.NewWriter(outFile)
+		if _, err := io.Copy(bufWriter, rc); err != nil {
+			outFile.Close()
+			rc.Close()
+			return err
+		}
+
+		// Ensure all buffered data is written
+		if err := bufWriter.Flush(); err != nil {
 			outFile.Close()
 			rc.Close()
 			return err
