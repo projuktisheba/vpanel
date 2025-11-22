@@ -48,22 +48,11 @@ export const databaseManager = {
 
   // clear MySQL database
   clearMySQLDB: async (databaseName: string): Promise<Response> => {
-    try {
       const response = await HttpClient.delete<DatabaseResponse>(
         `/db/mysql/reset-database?db_name=${databaseName}`
       );
-
       console.log(response.data);
       return response.data;
-    } catch (error: any) {
-      console.error(
-        "Error clearing MySQL database:",
-        error.response?.data || error.message
-      );
-      throw new Error(
-        error.response?.data?.message || "Clearing database failed"
-      );
-    }
   },
 
   // Delete MySQL database

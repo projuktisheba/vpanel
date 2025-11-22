@@ -18,7 +18,7 @@ import AlertModal from "../../components/ui/modal/AlertModal";
 import moment from "moment";
 import FileInput from "../../components/form/input/FileInput";
 
-import { DatabaseIcon, EyeIcon, Loader, RotateCcw, Trash2, Upload } from "lucide-react";
+import { DatabaseIcon, EyeIcon, Loader, Trash2, Upload } from "lucide-react";
 import Tabs from "../UiElements/Tabs";
 import Form from "../../components/form/Form";
 import { Preloader } from "../../components/preloader/Preloader";
@@ -42,7 +42,8 @@ export default function MySQL() {
   const [importDatabase, setImportDatabase] = useState<Database | null>(null);
 
   // clear database
-  const [clearTargetDatabase, setClearTargetDatabase] = useState<Database|null>(null);
+  const [clearTargetDatabase, setClearTargetDatabase] =
+    useState<Database | null>(null);
   const [isDBClearing, setIsDBClearing] = useState<boolean>(false);
   const [clearDatabaseSuccess, setClearDatabaseSuccess] = useState<string>("");
   const [clearDatabaseError, setClearDatabaseError] = useState<string>("");
@@ -252,7 +253,9 @@ export default function MySQL() {
               </span>
             </DropdownItem>
             <DropdownItem
-              onItemClick={() => {openClearDatabaseModal(row)}}
+              onItemClick={() => {
+                openClearDatabaseModal(row);
+              }}
               className="flex w-full font-medium text-left text-gray-500 border rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
             >
               <span className="inline flex gap-2">
@@ -293,15 +296,17 @@ export default function MySQL() {
     setOpenDropdownId("");
   }
 
-
   // Clear database handlers
   function openClearDatabaseModal(db: Database) {
     setClearTargetDatabase(db);
   }
   function closeClearDatabaseModal() {
     setClearTargetDatabase(null);
+    setClearDatabaseSuccess("");
+    setClearDatabaseError("");
+    setIsDBClearing(false);
   }
- const handleConfirmClearDatabase = async () => {
+  const handleConfirmClearDatabase = async () => {
     if (!clearTargetDatabase) return;
 
     setIsDBClearing(true);
@@ -311,17 +316,15 @@ export default function MySQL() {
         clearTargetDatabase.dbName
       );
 
-      if (resp?.error) {
-        setClearDatabaseError(resp?.message)
+      if (resp?.error == true) {
+        setClearDatabaseError(resp?.message);
         return; // stop here
       }
-
-      // Success
-      setClearDatabaseSuccess(resp?.message)
-      await fetchDatabases(); // refresh list
+      setClearDatabaseSuccess(resp?.message);
+      await fetchDatabases();
     } catch (err: any) {
       console.error("Failed to delete database:", err);
-      setClearDatabaseError(err)
+      setClearDatabaseError(err);
     } finally {
       setIsDBClearing(false);
     }
@@ -334,7 +337,6 @@ export default function MySQL() {
   function closeDeleteDatabaseModal() {
     setDeleteTargetDatabase(null);
   }
-  
 
   const handleConfirmDeleteDatabase = async () => {
     if (!deleteTargetDatabase) return;
@@ -860,72 +862,85 @@ export default function MySQL() {
               </div>
             </div>
           </Modal>
-{/* Confirmation dialog for clearing database data */}
-<Modal
-  isOpen={clearTargetDatabase != null}
-  onClose={closeClearDatabaseModal}
-  className="max-w-[500px] m-4"
->
-  <div className="no-scrollbar relative w-full max-w-[500px] rounded-3xl bg-white p-6 dark:bg-gray-900 lg:p-8">
-    {/* Header */}
-    <div className="px-2">
-      <h4 className="mb-3 text-2xl font-semibold text-gray-800 dark:text-white/90">
-        Clear Database
-      </h4>
-      <p className="text-sm text-gray-500 dark:text-gray-400">
-        You are about to clear all data from the database{" "}
-        <span className="font-semibold text-yellow-600">
-          {clearTargetDatabase?.dbName}
-        </span>
-        . <br />
-        This action is irreversible and will delete all records from all
-        tables, but the database and schema will remain intact.
-      </p>
-    </div>
+          {/* Confirmation dialog for clearing database data */}
+          <Modal
+            isOpen={clearTargetDatabase != null}
+            onClose={closeClearDatabaseModal}
+            className="max-w-[500px] m-4"
+          >
+            <div className="no-scrollbar relative w-full max-w-[500px] rounded-3xl bg-white p-6 dark:bg-gray-900 lg:p-8">
+              {/* Header */}
+              <div className="px-2">
+                <h4 className="mb-3 text-2xl font-semibold text-gray-800 dark:text-white/90">
+                  Clear Database
+                </h4>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  You are about to clear all data from the database{" "}
+                  <span className="font-semibold text-yellow-600">
+                    {clearTargetDatabase?.dbName}
+                  </span>
+                  . <br />
+                  This action is irreversible and will delete all records from
+                  all tables, but the database and schema will remain intact.
+                </p>
+              </div>
 
-    {/* Warning Section */}
-    <div className="mt-6 px-2">
-      <div className="rounded-xl border border-yellow-300 bg-yellow-50 p-4 dark:border-yellow-700 dark:bg-yellow-900/20">
-        <h5 className="mb-2 text-lg font-medium text-yellow-700 dark:text-yellow-400">
-          ⚠️ Warning
-        </h5>
-        <p className="text-sm text-yellow-600 dark:text-yellow-300">
-          Clearing this database will remove all data permanently. This cannot
-          be undone. Make sure you have backups if needed.
-        </p>
-      </div>
-    </div>
+              {/* Warning Section */}
+              <div className="mt-6 px-2">
+                <div className="rounded-xl border border-yellow-300 bg-yellow-50 p-4 dark:border-yellow-700 dark:bg-yellow-900/20">
+                  <h5 className="mb-2 text-lg font-medium text-yellow-700 dark:text-yellow-400">
+                    ⚠️ Warning
+                  </h5>
+                  <p className="text-sm text-yellow-600 dark:text-yellow-300">
+                    Clearing this database will remove all data permanently.
+                    This cannot be undone. Make sure you have backups if needed.
+                  </p>
+                </div>
+              </div>
+              {clearDatabaseSuccess && (
+                <div className="mt-4 flex items-center gap-3 px-2justify-center">
+                  <p className="text-sm text-blue-600 dark:text-blue-300">
+                    {clearDatabaseSuccess}
+                  </p>
+                </div>
+              )}
+              {clearDatabaseError && (
+                <div className="mt-4 flex items-center px-2 justify-center">
+                  <p className="text-sm text-red-600 dark:text-red-300">
+                    {clearDatabaseError}
+                  </p>
+                </div>
+              )}
 
-    {/* Footer Buttons */}
-    <div className="mt-8 flex items-center gap-3 px-2 lg:justify-end">
-      <Button
-        size="sm"
-        variant="outline"
-        onClick={closeClearDatabaseModal}
-      >
-        Cancel
-      </Button>
+              {/* Footer Buttons */}
+              <div className="mt-8 flex items-center gap-3 px-2 lg:justify-end">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={closeClearDatabaseModal}
+                >
+                  Cancel
+                </Button>
 
-      <Button
-        size="sm"
-        variant="primary"
-        disabled={!clearTargetDatabase || isDBClearing}
-        className="bg-yellow-500 hover:bg-yellow-600 text-black"
-        onClick={handleConfirmClearDatabase}
-      >
-        {isDBClearing ? (
-          <>
-            <Loader className="animate-spin w-4 h-4 mr-2" />
-            Clearing...
-          </>
-        ) : (
-          "Clear Database"
-        )}
-      </Button>
-    </div>
-  </div>
-</Modal>
-
+                <Button
+                  size="sm"
+                  variant="primary"
+                  disabled={!clearTargetDatabase || isDBClearing}
+                  className="bg-yellow-500 hover:bg-yellow-600 text-black"
+                  onClick={handleConfirmClearDatabase}
+                >
+                  {isDBClearing ? (
+                    <>
+                      <Loader className="animate-spin w-4 h-4 mr-2" />
+                      Clearing...
+                    </>
+                  ) : (
+                    "Clear Database"
+                  )}
+                </Button>
+              </div>
+            </div>
+          </Modal>
 
           {/* Create MySQL User Modal */}
           <Modal
