@@ -1,12 +1,16 @@
 package deploy
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/projuktisheba/vpanel/backend/internal/config"
+	"github.com/projuktisheba/vpanel/backend/internal/pkg/ssl"
 )
 
 func DeployWordPress(domain string, projectRoot string) error {
@@ -198,19 +202,8 @@ func DeployWordPress(domain string, projectRoot string) error {
 	}
 
 	// 9 Install Certbot and obtain SSL
-	fmt.Println("Installing Certbot and obtaining SSL...")
-	cmdsCert := [][]string{
-		{"sudo", "apt", "install", "-y", "certbot", "python3-certbot-nginx"},
-		{"sudo", "certbot", "--nginx", "-d", domain, "-d", "www." + domain, "--non-interactive", "--agree-tos", "-m", "admin@" + domain},
-	}
-	for _, c := range cmdsCert {
-		cmd := exec.Command(c[0], c[1:]...)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		if err := cmd.Run(); err != nil {
-			return err
-		}
-	}
+	fmt.Println("Installing obtaining SSL...")
+	ssl.SetupSSL(context.Background(), domain, config.Email, true)
 
 	if err := exec.Command("sudo", "systemctl", "reload", "nginx").Run(); err != nil {
 		return err
@@ -372,34 +365,49 @@ func RestartWordpressSite(domain string) error {
 
 // DeleteWordpressSite deletes the project folder and Nginx configuration
 func DeleteWordpressSite(projectName, domain string, projectRoot string) error {
-	if domain == "" || projectRoot == "" {
-		return fmt.Errorf("domain and project root cannot be empty")
-	}
-	projectRoot = filepath.Clean(projectRoot)
-	projectFolder := filepath.Join(projectRoot, domain)
+    if domain == "" || projectRoot == "" {
+        return fmt.Errorf("domain and project root cannot be empty")
+    }
 
-	// Remove project folder
-	if _, err := os.Stat(projectFolder); !os.IsNotExist(err) {
-		if err := os.RemoveAll(projectFolder); err != nil {
-			return fmt.Errorf("failed to remove project folder: %v", err)
-		}
-		fmt.Printf("✅ Deleted project folder: %s\n", projectFolder)
-	}
+    projectRoot = filepath.Clean(projectRoot)
+    projectFolder := filepath.Join(projectRoot, domain)
 
-	// Remove Nginx config and symlink
-	nginxConf := "/etc/nginx/sites-available/" + fmt.Sprintf("%s.conf", projectName)
-	symlink := "/etc/nginx/sites-enabled/" + fmt.Sprintf("%s.conf", projectName)
-	_ = os.Remove(symlink)
-	_ = os.Remove(nginxConf)
+    // Delete project folder using sudo rm -rf
+    cmd := exec.Command("sudo", "rm", "-rf", projectFolder)
+    if out, err := cmd.CombinedOutput(); err != nil {
+        return fmt.Errorf("failed to remove project folder: %v | %s", err, string(out))
+    }
+    fmt.Printf("Deleted project folder: %s\n", projectFolder)
 
-	// Reload Nginx
-	if err := exec.Command("sudo", "nginx", "-t").Run(); err != nil {
-		fmt.Println("⚠ Nginx test failed after deletion, please check manually")
-	} else {
-		_ = exec.Command("sudo", "systemctl", "reload", "nginx").Run()
-	}
+    // Delete Nginx config
+    nginxConf := "/etc/nginx/sites-available/" + fmt.Sprintf("%s.conf", projectName)
+    cmd = exec.Command("sudo", "rm", "-f", nginxConf)
+    cmd.Run()
 
-	// Remove cert records
-	fmt.Printf("✅ Site %s fully deleted.\n", domain)
-	return nil
+    // Delete symlink
+    symlink := "/etc/nginx/sites-enabled/" + fmt.Sprintf("%s.conf", projectName)
+    cmd = exec.Command("sudo", "rm", "-f", symlink)
+    cmd.Run()
+
+    // Reload nginx
+    cmd = exec.Command("sudo", "nginx", "-t")
+    if err := cmd.Run(); err != nil {
+        fmt.Println("⚠ Nginx test failed after deletion, please check manually")
+    } else {
+        exec.Command("sudo", "systemctl", "reload", "nginx").Run()
+        fmt.Println("🔄 Nginx reloaded")
+    }
+
+    // Delete certbot certificate (optional cleanup)
+    certPath1 := "/etc/letsencrypt/live/" + domain
+    certPath2 := "/etc/letsencrypt/archive/" + domain
+    certPath3 := "/etc/letsencrypt/renewal/" + domain + ".conf"
+
+    exec.Command("sudo", "rm", "-rf", certPath1).Run()
+    exec.Command("sudo", "rm", "-rf", certPath2).Run()
+    exec.Command("sudo", "rm", "-f", certPath3).Run()
+
+    fmt.Printf("✅ Site %s fully deleted.\n", domain)
+    return nil
 }
+

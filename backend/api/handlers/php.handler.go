@@ -12,7 +12,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/projuktisheba/vpanel/backend/internal/dbrepo"
@@ -275,6 +274,18 @@ func (h *PHPHandler) DeploySite(w http.ResponseWriter, r *http.Request) {
 	projectDir := utils.GetPHPProjectDirectory(domainName)
 	h.infoLog.Println("Project Dir: ", projectDir)
 
+	// Step 1: Deploy the PHP site (script execution)
+	if err := deploy.DeployPHPSite(r.Context(), projectDir, user.GetCurrentUser().Username, domainName); err != nil {
+		h.errorLog.Println("ERROR_01_DeploySite:", err)
+		_, _ = h.DB.ProjectRepo.UpdateProjectStatus(context.Background(), int64(projectID), models.ProjectStatusError)
+		return
+	}
+
+	// Step 2: Update project status to running
+	if _, err := h.DB.ProjectRepo.UpdateProjectStatus(context.Background(), int64(projectID), models.ProjectStatusRunning); err != nil {
+		h.errorLog.Println("ERROR_02_DeploySite:", err)
+		return
+	}
 	// Respond immediately to client
 	resp := struct {
 		Error   bool   `json:"error"`
@@ -284,28 +295,6 @@ func (h *PHPHandler) DeploySite(w http.ResponseWriter, r *http.Request) {
 		Message: "Deployment started",
 	}
 	utils.WriteJSON(w, http.StatusAccepted, resp)
-
-	// Run deployment asynchronously
-	go func(projectID int, domain, dir string) {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
-		defer cancel()
-
-		// Step 1: Deploy the PHP site (script execution)
-		if err := deploy.DeployPHPSite(ctx, dir, user.GetCurrentUser().Username, domain); err != nil {
-			h.errorLog.Println("ERROR_01_DeploySite:", err)
-			_, _ = h.DB.ProjectRepo.UpdateProjectStatus(context.Background(), int64(projectID), models.ProjectStatusError)
-			return
-		}
-
-		// Step 2: Update project status to running
-		if _, err := h.DB.ProjectRepo.UpdateProjectStatus(context.Background(), int64(projectID), models.ProjectStatusRunning); err != nil {
-			h.errorLog.Println("ERROR_02_DeploySite:", err)
-			return
-		}
-
-		h.infoLog.Println("Deployment finished for project:", domain)
-
-	}(projectID, domainName, projectDir)
 }
 
 func (h *PHPHandler) ListProjects(w http.ResponseWriter, r *http.Request) {
@@ -335,6 +324,47 @@ func (h *PHPHandler) ListProjects(w http.ResponseWriter, r *http.Request) {
 		Error:    false,
 		Message:  "Projects fetched successfully",
 		Projects: projects,
+	}
+
+	utils.WriteJSON(w, http.StatusOK, resp)
+}
+
+func (h *PHPHandler) DeleteSite(w http.ResponseWriter, r *http.Request) {
+	idStr := r.URL.Query().Get("project_id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		utils.BadRequest(w, errors.New("invalid project ID"))
+		return
+	}
+	//Get the project info
+	var project *models.Project
+	project, err = h.DB.ProjectRepo.GetProjectByID(r.Context(), int64(id))
+	if err != nil {
+		h.errorLog.Println("ERROR_01_DeleteSite: failed to delete project:", err)
+		utils.ServerError(w, fmt.Errorf("failed to delete project: %w", err))
+		return
+	}
+	//Only Wordpress site can be deleted
+	if project.ProjectFramework != "Wordpress" {
+		utils.ServerError(w, fmt.Errorf("Only Wordpress site can be deleted"))
+		return
+	}
+	//delete the project files and users
+	if err := deploy.DeletePHPSite(r.Context(), project.ProjectDirectory, user.GetCurrentUser().Username, project.DomainName); err != nil {
+		h.errorLog.Println("ERROR_02_DeleteSite: failed to delete project:", err)
+		utils.ServerError(w, fmt.Errorf("failed to delete project: %w", err))
+		return
+	}
+
+	if err := h.DB.ProjectRepo.DeleteProject(r.Context(), id); err != nil {
+		h.errorLog.Println("ERROR_01_DeleteSite: failed to delete project:", err)
+		utils.ServerError(w, fmt.Errorf("failed to delete project: %w", err))
+		return
+	}
+
+	resp := models.Response{
+		Error:   false,
+		Message: "PHP Project deleted successfully",
 	}
 
 	utils.WriteJSON(w, http.StatusOK, resp)

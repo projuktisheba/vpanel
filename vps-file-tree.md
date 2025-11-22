@@ -44,3 +44,8 @@ $USERHOME/projuktisheba/
 1. **Project Naming**: Always name project folders under `projects/` by the domain or project identifier.
 2. **Templates**: Use `templates/` to clone new projects or databases for consistency.
 3. **Organization**: Keep project files structured inside each project folder (`src/`, `config/`, `assets/`, etc.) for easy maintenance.
+
+
+#VPS setup guide
+
+1. mkdir -p /var/log (in case if dir not exist)

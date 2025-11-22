@@ -49,6 +49,7 @@ func GetPHPProjectDirectory(domainName string) string {
 	return filepath.Join(homeDir, "projuktisheba", "bin", "PHP", domainName)
 }
 
+
 // GetPHPProjectName returns a unique name for a PHP project
 // based on the provided domain name.
 // It also empty string when error occurs

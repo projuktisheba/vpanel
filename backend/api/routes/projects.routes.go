@@ -23,6 +23,10 @@ func projectHandlerRoutes() *chi.Mux {
 	// Deploy the project(php-fpm setup, dependency installation, nginx server block setup)
 	mux.Post("/php/deploy", handlerRepo.PHP.DeploySite)
 
+	// Delete PHP project.
+	//query parameter project_id
+	mux.Post("/php/delete", handlerRepo.PHP.DeleteSite)
+
 	// List all projects
 	mux.Get("/php/list", handlerRepo.PHP.ListProjects)
 
@@ -32,7 +36,7 @@ func projectHandlerRoutes() *chi.Mux {
 
 	// query parameter: project_id
 	mux.Post("/wordpress/get-status", handlerRepo.WordPress.GetSiteStatus)
-	
+
 	// query parameter: project_id
 	mux.Post("/wordpress/suspend", handlerRepo.WordPress.SuspendSite)
 

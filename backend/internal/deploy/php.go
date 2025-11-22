@@ -116,7 +116,25 @@ func DeployPHPSite(ctx context.Context, projectPath, sysUser, domain string) err
 		return fmt.Errorf("php install failed: %w", err)
 	}
 
-	// 6. Create FPM Pool (Using writeProtectedFile)
+	// 6. Create log directory
+	logFile := fmt.Sprintf("/var/log/php%s-%s-error.log", targetPHP, domain)
+
+	// 6.1 Create the log file
+	if err := runSudo("touch", logFile); err != nil {
+		return err
+	}
+
+	// 6.2change ownership
+	if err := runSudo("chown", fmt.Sprintf("%s:%s", sysUser, sysUser), logFile); err != nil {
+		fmt.Println("chown error:", err)
+	}
+
+	// 6.3. Set permissions
+	if err := runSudo("chmod", "644", logFile); err != nil {
+		fmt.Println("chown error:", err)
+	}
+
+	// 7. Create FPM Pool (Using writeProtectedFile)
 	poolConf := fmt.Sprintf("/etc/php/%s/fpm/pool.d/%s.conf", targetPHP, domain)
 	socketPath := fmt.Sprintf("/run/php/php%s-%s-fpm.sock", targetPHP, domain)
 
@@ -126,13 +144,20 @@ group = %s
 listen = %s
 listen.owner = www-data
 listen.group = www-data
+listen.mode = 0660
+
 pm = dynamic
-pm.max_children = 5
-pm.start_servers = 2
-pm.min_spare_servers = 1
-pm.max_spare_servers = 3
+pm.max_children = 10
+pm.start_servers = 3
+pm.min_spare_servers = 2
+pm.max_spare_servers = 6
+
+catch_workers_output = yes
+php_admin_value[error_log] = %s
+php_admin_flag[log_errors] = on
 chdir = /
-`, domain, sysUser, sysUser, socketPath)
+
+`, domain, sysUser, sysUser, socketPath, logFile)
 
 	// REPLACEMENT HERE
 	if err := writeProtectedFile(poolConf, []byte(fpmPool)); err != nil {
@@ -258,5 +283,74 @@ chdir = /
 	}
 
 	fmt.Println("Deployment done using PHP", targetPHP)
+	return nil
+}
+
+// DeletePHPSite removes all traces of a deployed PHP site
+func DeletePHPSite(ctx context.Context, projectPath, sysUser, domain string) error {
+	if domain == "" || sysUser == "" {
+		return fmt.Errorf("domain and sysUser are required")
+	}
+
+	// Helper to run sudo commands
+	runSudo := func(cmdStr string, args ...string) error {
+		allArgs := append([]string{cmdStr}, args...)
+		cmd := exec.CommandContext(ctx, "sudo", allArgs...)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		return cmd.Run()
+	}
+
+	// Dynamically detect PHP version for this project 
+	targetPHP := "7.4"
+	composerFile := filepath.Join(projectPath, "composer.json")
+
+	if _, err := os.Stat(composerFile); err == nil {
+		out, _ := exec.Command("bash", "-c",
+			fmt.Sprintf(`grep '"php":' "%s" | head -n 1 | grep -oE '[0-9]+\.[0-9]+'`, composerFile)).
+			Output()
+
+		detected := strings.TrimSpace(string(out))
+		if detected != "" {
+			verFloat, err := strconv.ParseFloat(detected, 64)
+			if err == nil {
+				if verFloat < 5.6 {
+					targetPHP = "7.4" // Upgrade obsolete PHP
+				} else {
+					targetPHP = detected
+				}
+			}
+		}
+	}
+
+	// 1. Stop FPM pool if exists
+	runSudo("systemctl", "stop", fmt.Sprintf("php%s-fpm", targetPHP))
+
+	// 2. Remove project files
+	runSudo("rm", "-rf", projectPath)
+
+	// 3. Remove FPM pool file
+	poolConf := fmt.Sprintf("/etc/php/%s/fpm/pool.d/%s.conf", targetPHP, domain)
+	runSudo("rm", "-f", poolConf)
+
+	// 4. Remove log file
+	logFile := fmt.Sprintf("/var/log/php%s-%s-error.log", targetPHP, domain)
+	runSudo("rm", "-f", logFile)
+
+	// 5. Remove Nginx config
+	nginxConf := filepath.Join("/etc/nginx/sites-available", domain)
+	runSudo("rm", "-f", nginxConf)
+
+	nginxEnabled := filepath.Join("/etc/nginx/sites-enabled", domain)
+	runSudo("rm", "-f", nginxEnabled)
+
+	// 6. Reload PHP-FPM and Nginx
+	runSudo("systemctl", "reload", fmt.Sprintf("php%s-fpm", targetPHP))
+	runSudo("systemctl", "reload", "nginx")
+
+	// 7. Reset user permissions (optional)
+	runSudo("chmod", "g-x", fmt.Sprintf("/home/%s", sysUser))
+
+	fmt.Println("Project deleted successfully:", domain)
 	return nil
 }
