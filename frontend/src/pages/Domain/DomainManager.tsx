@@ -1,4 +1,4 @@
-import { Loader } from "lucide-react";
+import { ExternalLink, Loader } from "lucide-react";
 import moment from "moment";
 import { useState, useEffect, FormEvent } from "react";
 import ComponentCard from "../../components/common/ComponentCard";
@@ -97,7 +97,23 @@ export default function DomainManager() {
       key: "domain",
       label: "Domain Name",
       className: "font-medium text-gray-800 text-theme-sm dark:text-white/90",
-      render: (row: Domain) => row.domain,
+      render: (row: Domain) => (
+        <div className="flex items-center gap-2">
+        {/* Domain Name */}
+        <span>{row.domain}</span>
+
+        {/* Visit Icon */}
+        <a
+          href={`https://${row.domain}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center justify-center p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800"
+          title={`Visit ${row.domain}`}
+        >
+          <ExternalLink size={14} className="text-blue-500" />
+        </a>
+      </div>
+      ),
     },
     {
       key: "domainProvider",
