@@ -288,12 +288,14 @@ func (h *PHPHandler) DeploySite(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		h.errorLog.Println("ERROR_01_DeploySite:", err)
 		_, _ = h.DB.ProjectRepo.UpdateProjectStatus(context.Background(), int64(projectID), models.ProjectStatusError)
+		utils.BadRequest(w, fmt.Errorf("failed to deploy project status:%w", err))
 		return
 	}
 
 	// Step 2: Update project status to running
 	if _, err := h.DB.ProjectRepo.UpdateProjectStatus(context.Background(), int64(projectID), models.ProjectStatusRunning); err != nil {
 		h.errorLog.Println("ERROR_02_DeploySite:", err)
+		utils.BadRequest(w, fmt.Errorf("Warning: failed to update project status:%w", err))
 		return
 	}
 	// Respond immediately to client

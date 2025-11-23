@@ -93,7 +93,7 @@ func RunServer(ctx context.Context) error {
 	infoLog.Println("Connected to database")
 
 	// create router instance
-	routes := routes.Routes(cfg.Env, dbRepo, cfg.JWT, infoLog, errorLog, cfg.DB.MySQLRootDSN, cfg.DB.PostgreSQLRootDSN)
+	routes := routes.Routes(cfg.Host, cfg.Env, dbRepo, cfg.JWT, infoLog, errorLog, cfg.DB.MySQLRootDSN, cfg.DB.PostgreSQLRootDSN)
 	//Initiate handlers
 	app = &Application{
 		config:    cfg,

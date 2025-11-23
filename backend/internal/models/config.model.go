@@ -39,6 +39,7 @@ type DBConfig struct {
 }
 
 type Config struct {
+	Host  string
 	Port  int64
 	Env   string
 	Owner string

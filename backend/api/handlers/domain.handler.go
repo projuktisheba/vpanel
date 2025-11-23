@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"regexp"
@@ -16,13 +17,15 @@ import (
 )
 
 type DomainHandler struct {
+	Host string
 	DB       *dbrepo.DBRepository
 	infoLog  *log.Logger
 	errorLog *log.Logger
 }
 
-func newDomainHandler(db *dbrepo.DBRepository, infoLog, errorLog *log.Logger) DomainHandler {
+func newDomainHandler(host string, db *dbrepo.DBRepository, infoLog, errorLog *log.Logger) DomainHandler {
 	return DomainHandler{
+		Host: host,
 		DB:       db,
 		infoLog:  infoLog,
 		errorLog: errorLog,
@@ -44,8 +47,15 @@ func (h *DomainHandler) CreateDomain(w http.ResponseWriter, r *http.Request) {
 		utils.BadRequest(w, err)
 		return
 	}
+	//checks if any of the resolved IPv4 addresses match the targetedIPV4 string
 
-	// sanitize parameters
+	//
+	ok := utils.IsDomainConnectedToIP(domain.Domain, h.Host)
+	if !ok {
+		utils.BadRequest(w, fmt.Errorf("%s does not point to this VPS", domain.Domain))
+		return
+	}
+
 	err = h.DB.Domain.CreateDomain(r.Context(), &domain)
 	if err != nil {
 		h.errorLog.Println("ERROR_CreateDomain:", err)
@@ -55,7 +65,7 @@ func (h *DomainHandler) CreateDomain(w http.ResponseWriter, r *http.Request) {
 
 	utils.WriteJSON(w, http.StatusOK, models.Response{
 		Error:   false,
-		Message: "Domain created successfully",
+		Message: "Domain enlisted successfully",
 	})
 }
 

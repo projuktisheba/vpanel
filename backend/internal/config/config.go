@@ -18,6 +18,9 @@ func Load() (models.Config, error) {
 		// return err
 	}
 
+	// Read OWNER
+	cfg.Host = os.Getenv("HOST")
+
 	// Read and parse PORT
 	if portStr := os.Getenv("PORT"); portStr != "" {
 		port, err := strconv.Atoi(portStr)
@@ -29,7 +32,7 @@ func Load() (models.Config, error) {
 		cfg.Port = 8080 // Default port
 	}
 	// Read OWNER
-	cfg.JWT.SecretKey = os.Getenv("OWNER")
+	cfg.Owner = os.Getenv("OWNER")
 
 	cfg.Env = os.Getenv("ENV")
 

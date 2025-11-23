@@ -17,14 +17,14 @@ type HandlerRepo struct {
 	SSLHandler    SSLHandler
 }
 
-func NewHandlerRepo(db *dbrepo.DBRepository, JWT models.JWTConfig, infoLog, errorLog *log.Logger, mysqlRootDSN string, postgresqlRootDSN string) *HandlerRepo {
+func NewHandlerRepo(host string, db *dbrepo.DBRepository, JWT models.JWTConfig, infoLog, errorLog *log.Logger, mysqlRootDSN string, postgresqlRootDSN string) *HandlerRepo {
 	return &HandlerRepo{
 		Auth:          newAuthHandler(db, JWT, infoLog, errorLog),
 		MySQLManager:     newMySQLManagerHandler(db, infoLog, errorLog, mysqlRootDSN),
 		PostgreSQLManager:     newPostgreSQLManagerHandler(db, infoLog, errorLog, postgresqlRootDSN),
 		WordPress:     newWordPressHandler(db, infoLog, errorLog),
 		PHP:           newPHPHandler(db, infoLog, errorLog),
-		DomainHandler: newDomainHandler(db, infoLog, errorLog),
+		DomainHandler: newDomainHandler(host, db, infoLog, errorLog),
 		SSLHandler:    newSSLHandler(infoLog, errorLog),
 	}
 }
