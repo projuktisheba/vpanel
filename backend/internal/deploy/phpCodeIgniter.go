@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-func DeployPHPSite(ctx context.Context, projectPath, sysUser, domain string) error {
+func DeployCodeIgniterSite(ctx context.Context, projectPath, sysUser, domain string) error {
 
 	if domain == "" || sysUser == "" {
 		return errors.New("domain and sysUser are required")
@@ -285,7 +285,6 @@ chdir = /
 	fmt.Println("Deployment done using PHP", targetPHP)
 	return nil
 }
-
 
 // DeletePHPSite removes all traces of a deployed PHP site
 func DeletePHPSite(ctx context.Context, projectPath, sysUser, domain string) error {

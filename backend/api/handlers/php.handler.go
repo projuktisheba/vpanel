@@ -100,7 +100,7 @@ func (h *PHPHandler) InitProject(w http.ResponseWriter, r *http.Request) {
 				return
 			} else {
 				h.errorLog.Println(projectData)
-				utils.BadRequest(w, fmt.Errorf("A website is already running in this domain", err))
+				utils.BadRequest(w, fmt.Errorf("A website is already running in this domain %w", err))
 				return
 			}
 		} else {
@@ -117,7 +117,7 @@ func (h *PHPHandler) InitProject(w http.ResponseWriter, r *http.Request) {
 		Summary models.Project `json:"summary"`
 	}{
 		Error:   false,
-		Message: "Project created successfully",
+		Message: "Project initiated successfully",
 		Summary: projectData,
 	}
 
@@ -270,12 +270,23 @@ func (h *PHPHandler) DeploySite(w http.ResponseWriter, r *http.Request) {
 		utils.BadRequest(w, fmt.Errorf("domainName is required"))
 		return
 	}
+	projectFramework := strings.TrimSpace(r.FormValue("projectFramework"))
+	if projectFramework == "" {
+		utils.BadRequest(w, fmt.Errorf("projectFramework is required"))
+		return
+	}
 
 	projectDir := utils.GetPHPProjectDirectory(domainName)
 	h.infoLog.Println("Project Dir: ", projectDir)
 
 	// Step 1: Deploy the PHP site (script execution)
-	if err := deploy.DeployPHPSite(r.Context(), projectDir, user.GetCurrentUser().Username, domainName); err != nil {
+	if projectFramework == "Laravel" {
+		err = deploy.DeployLaravelSite(domainName, projectDir, user.GetCurrentUser().Username)
+	} else if projectFramework == "CodeIgniter" {
+		err = deploy.DeployCodeIgniterSite(r.Context(), projectDir, user.GetCurrentUser().Username, domainName)
+	}
+
+	if err != nil {
 		h.errorLog.Println("ERROR_01_DeploySite:", err)
 		_, _ = h.DB.ProjectRepo.UpdateProjectStatus(context.Background(), int64(projectID), models.ProjectStatusError)
 		return
@@ -292,7 +303,7 @@ func (h *PHPHandler) DeploySite(w http.ResponseWriter, r *http.Request) {
 		Message string `json:"message"`
 	}{
 		Error:   false,
-		Message: "Deployment started",
+		Message: "Deployment Completed",
 	}
 	utils.WriteJSON(w, http.StatusAccepted, resp)
 }
@@ -350,17 +361,17 @@ func (h *PHPHandler) DeleteSite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	//delete the project files and users
-	if err := deploy.DeletePHPSite(r.Context(), project.ProjectDirectory, user.GetCurrentUser().Username, project.DomainName); err != nil {
-		h.errorLog.Println("ERROR_02_DeleteSite: failed to delete project:", err)
-		utils.ServerError(w, fmt.Errorf("failed to delete project: %w", err))
-		return
-	}
+	// if err := deploy.DeletePHPSite(r.Context(), project.ProjectDirectory, user.GetCurrentUser().Username, project.DomainName); err != nil {
+	// 	h.errorLog.Println("ERROR_02_DeleteSite: failed to delete project:", err)
+	// 	utils.ServerError(w, fmt.Errorf("failed to delete project: %w", err))
+	// 	return
+	// }
 
-	if err := h.DB.ProjectRepo.DeleteProject(r.Context(), id); err != nil {
-		h.errorLog.Println("ERROR_01_DeleteSite: failed to delete project:", err)
-		utils.ServerError(w, fmt.Errorf("failed to delete project: %w", err))
-		return
-	}
+	// if err := h.DB.ProjectRepo.DeleteProject(r.Context(), id); err != nil {
+	// 	h.errorLog.Println("ERROR_01_DeleteSite: failed to delete project:", err)
+	// 	utils.ServerError(w, fmt.Errorf("failed to delete project: %w", err))
+	// 	return
+	// }
 
 	resp := models.Response{
 		Error:   false,

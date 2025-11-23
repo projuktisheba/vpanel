@@ -21,10 +21,10 @@ func projectHandlerRoutes() *chi.Mux {
 
 	// Delete PHP project.
 	//query parameter project_id
-	mux.Post("/php/delete", handlerRepo.PHP.DeleteSite)
+	// mux.Post("/php/delete", handlerRepo.PHP.DeleteSite)
 
 	// List all projects
-	mux.Get("/php/list", handlerRepo.PHP.ListProjects)
+	// mux.Get("/php/list", handlerRepo.PHP.ListProjects)
 
 	// ======== Wordpress Project Routes ========
 	// req body {domainName, dbName}
