@@ -7,10 +7,6 @@ import (
 func projectHandlerRoutes() *chi.Mux {
 	mux := chi.NewRouter()
 
-	// ======== Project Routes ========
-	// Optional: Upload project folder in .zip format
-	mux.Post("/upload-project-folder", handlerRepo.Project.UploadProjectFile)
-
 	// ======== PHP Project Routes ========
 	//Initiate a php project
 	// request body: {domainName, dbName}, response: {error, message, summary}

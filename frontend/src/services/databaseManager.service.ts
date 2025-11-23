@@ -170,4 +170,174 @@ export const databaseManager = {
       throw new Error(error.response?.data?.message || "Something went wrong");
     }
   },
+
+
+  //service for postgresql
+  // Create Postgresql database
+  createPostgresqlDB: async (
+    databaseName: string,
+    databaseUserName: string
+  ): Promise<DatabaseResponse> => {
+    try {
+      const response = await HttpClient.post<DatabaseResponse>(
+        "/db/postgresql/create-database",
+        {
+          database_name: databaseName,
+          database_user: databaseUserName,
+        }
+      );
+
+      // Backend response is always JSON, even for errors
+      const data = response.data;
+
+      // Optionally throw if error is true, or just return the object
+      if (data?.error) {
+        console.warn("Backend returned an error:", data.message);
+        // You can either throw here or just return
+        // throw new Error(data.message);
+      }
+
+      return data;
+    } catch (err: any) {
+      // Axios error: check if response exists
+      if (err.response?.data) {
+        const data = err.response.data;
+        // data should be your JSON object
+        console.error("Error response from backend:", data);
+        return {
+          id: 0,
+          error: data.error,
+          message: data.message,
+        };
+      } else {
+        console.error("Network or Axios error:", err.message);
+        throw new Error(err.message || "Unknown error");
+      }
+    }
+  },
+
+  // clear Postgresql database
+  clearPostgresqlDB: async (databaseName: string): Promise<Response> => {
+      const response = await HttpClient.delete<DatabaseResponse>(
+        `/db/postgresql/reset-database?db_name=${databaseName}`
+      );
+      console.log(response.data);
+      return response.data;
+  },
+
+  // Delete Postgresql database
+  deletePostgresqlDB: async (databaseName: string): Promise<Response> => {
+    try {
+      const response = await HttpClient.delete<DatabaseResponse>(
+        `/db/postgresql/delete-database?db_name=${databaseName}`
+      );
+
+      console.log(response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error(
+        "Error deleting Postgresql database:",
+        error.response?.data || error.message
+      );
+      throw new Error(
+        error.response?.data?.message || "Database creation failed"
+      );
+    }
+  },
+
+  // Import Postgresql database
+  importPostgresqlDB: async (formData: FormData): Promise<Response> => {
+    try {
+      const response = await HttpClient.post<DatabaseResponse>(
+        "/db/postgresql/import-database",
+        formData,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        }
+      );
+
+      console.log("Import Postgresql database response:", response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error(
+        "Error importing Postgresql database:",
+        error.response?.data || error.message
+      );
+      throw new Error(
+        error.response?.data?.message || "Failed to import Postgresql database"
+      );
+    }
+  },
+
+  listPostgresqlDB: async (): Promise<any> => {
+    try {
+      const response = await HttpClient.get("/db/postgresql/databases");
+      console.log(response.data);
+      return response.data; // return the full response
+    } catch (error: any) {
+      console.error(
+        "Error listing Postgresql database:",
+        error.response?.data || error.message
+      );
+      throw new Error(error.response?.data?.message || "Something went wrong");
+    }
+  },
+
+  // Create Postgresql user
+  createPostgresqlUser: async (
+    username: string,
+    password: string
+  ): Promise<Response> => {
+    try {
+      const response = await HttpClient.post<Response>(
+        "/db/postgresql/create-user",
+        {
+          username,
+          password,
+        }
+      );
+
+      // Backend response is always JSON, even for errors
+      const data = response.data;
+
+      // Optionally throw if error is true, or just return the object
+      if (data?.error) {
+        console.warn("Backend returned an error:", data.message);
+        // You can either throw here or just return
+        // throw new Error(data.message);
+      }
+
+      return data;
+    } catch (err: any) {
+      // Axios error: check if response exists
+      if (err.response?.data) {
+        const data = err.response.data;
+        // data should be your JSON object
+        console.error("Error response from backend:", data);
+        return {
+          error: data.error,
+          message: data.message,
+        };
+      } else {
+        console.error("Network or Axios error:", err.message);
+        throw new Error(err.message || "Unknown error");
+      }
+    }
+  },
+
+  listPostgresqlUsers: async (): Promise<any> => {
+    try {
+      const response = await HttpClient.get("db/postgresql/users");
+      console.log(response.data);
+      return response.data; // return the full response
+    } catch (error: any) {
+      console.error(
+        "Error listing Postgresql users:",
+        error.response?.data || error.message
+      );
+      throw new Error(error.response?.data?.message || "Something went wrong");
+    }
+  },
 };

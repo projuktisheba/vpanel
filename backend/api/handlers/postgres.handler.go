@@ -15,23 +15,23 @@ import (
 	"github.com/projuktisheba/vpanel/backend/internal/utils"
 )
 
-type DatabaseManagerHandler struct {
-	mysqlRootDSN string
-	DB           *dbrepo.DBRepository
-	infoLog      *log.Logger
-	errorLog     *log.Logger
+type PostgreSQLManagerHandler struct {
+	postgresqlRootDSN string
+	DB                *dbrepo.DBRepository
+	infoLog           *log.Logger
+	errorLog          *log.Logger
 }
 
-func newDatabaseManagerHandler(db *dbrepo.DBRepository, infoLog, errorLog *log.Logger, mysqlRootDSN string) DatabaseManagerHandler {
-	return DatabaseManagerHandler{
-		mysqlRootDSN: mysqlRootDSN, // Must have admin privileges
-		DB:           db,
-		infoLog:      infoLog,
-		errorLog:     errorLog,
+func newPostgreSQLManagerHandler(db *dbrepo.DBRepository, infoLog, errorLog *log.Logger, postgresqlRootDSN string) PostgreSQLManagerHandler {
+	return PostgreSQLManagerHandler{
+		postgresqlRootDSN: postgresqlRootDSN, // Must have admin privileges
+		DB:                db,
+		infoLog:           infoLog,
+		errorLog:          errorLog,
 	}
 }
 
-func (h *DatabaseManagerHandler) CreateMySQLDatabase(w http.ResponseWriter, r *http.Request) {
+func (h *PostgreSQLManagerHandler) CreatePostgreSQLDatabase(w http.ResponseWriter, r *http.Request) {
 
 	type payload struct {
 		DatabaseName string `json:"database_name"`
@@ -53,7 +53,7 @@ func (h *DatabaseManagerHandler) CreateMySQLDatabase(w http.ResponseWriter, r *h
 
 	// ==================== Step 1: Handle user ====================
 	if req.Username != "" {
-		// Check if user exists in MySQL
+		// Check if user exists in PostgreSQL
 		registryUser, err = h.DB.DBRegistry.GetUserByUsername(r.Context(), req.Username)
 		if err != nil {
 			utils.BadRequest(w, fmt.Errorf("Database user not found"))
@@ -66,7 +66,7 @@ func (h *DatabaseManagerHandler) CreateMySQLDatabase(w http.ResponseWriter, r *h
 
 	if err != nil {
 		// Create the database, assign user if provided
-		if err := h.DB.MySQL.CreateMySQLDatabase(h.mysqlRootDSN, req.DatabaseName, registryUser.Username, registryUser.Password); err != nil {
+		if err := h.DB.PostgreSQL.CreatePostgreSQLDatabase(h.postgresqlRootDSN, req.DatabaseName, registryUser.Username, registryUser.Password); err != nil {
 			utils.ServerError(w, err)
 			return
 		}
@@ -74,7 +74,7 @@ func (h *DatabaseManagerHandler) CreateMySQLDatabase(w http.ResponseWriter, r *h
 
 	// Add database to registry
 	registryDB.DBName = req.DatabaseName
-	registryDB.DBType = "mysql"
+	registryDB.DBType = "postgresql"
 	registryDB.UserID = registryUser.ID
 	if err := h.DB.DBRegistry.InsertDatabaseRegistry(r.Context(), &registryDB); err != nil {
 		if strings.Contains(err.Error(), "databases_db_name_key") {
@@ -96,8 +96,8 @@ func (h *DatabaseManagerHandler) CreateMySQLDatabase(w http.ResponseWriter, r *h
 	utils.WriteJSON(w, http.StatusOK, resp)
 }
 
-// ImportMySQLDatabase handles uploading, saving, and optionally executing a .SQL file
-// for an existing MySQL database.
+// ImportPostgreSQLDatabase handles uploading, saving, and optionally executing a .SQL file
+// for an existing PostgreSQL database.
 //
 // This function expects a multipart/form-data POST request with the following fields:
 //   - "dbName": the name of the target database (required, must exist in registry)
@@ -107,10 +107,10 @@ func (h *DatabaseManagerHandler) CreateMySQLDatabase(w http.ResponseWriter, r *h
 //  1. Parse the multipart form and validate input.
 //  2. Verify that the database exists in the registry.
 //  3. Validate that the uploaded file has a ".sql" extension.
-//  4. Save the uploaded file to "$USER/projuktisheba/template/database/<dbName>_mysql.sql".
+//  4. Save the uploaded file to "$USER/projuktisheba/template/database/<dbName>_postgresql.sql".
 //  5. Execute the SQL statements in the file against the database.
 //  6. Return a JSON response indicating success or failure.
-func (h *DatabaseManagerHandler) ImportMySQLDatabase(w http.ResponseWriter, r *http.Request) {
+func (h *PostgreSQLManagerHandler) ImportPostgreSQLDatabase(w http.ResponseWriter, r *http.Request) {
 	// Parse multipart form (limit to 50MB)
 	if err := r.ParseMultipartForm(50 << 20); err != nil {
 		h.errorLog.Println("ERROR_01_ImportDB: failed to parse form:", err)
@@ -178,7 +178,7 @@ func (h *DatabaseManagerHandler) ImportMySQLDatabase(w http.ResponseWriter, r *h
 	}()
 
 	// ==================== Execute SQL statements ====================
-	err = h.DB.MySQL.ExecuteSQLFile(h.mysqlRootDSN, dbName, savePath)
+	err = h.DB.PostgreSQL.ExecuteSQLFile(h.postgresqlRootDSN, dbName, savePath)
 	if err != nil {
 		h.errorLog.Println("ERROR_05_ImportDB: Failed to execute SQL file:", err)
 		utils.ServerError(w, fmt.Errorf("Failed to execute SQL file: %w", err))
@@ -194,9 +194,9 @@ func (h *DatabaseManagerHandler) ImportMySQLDatabase(w http.ResponseWriter, r *h
 	utils.WriteJSON(w, http.StatusOK, resp)
 }
 
-// DeleteMySQLDatabase permanently drops a MySQL database
+// DeletePostgreSQLDatabase permanently drops a PostgreSQL database
 // and updates the database registry (soft delete).
-func (h *DatabaseManagerHandler) DeleteMySQLDatabase(w http.ResponseWriter, r *http.Request) {
+func (h *PostgreSQLManagerHandler) DeletePostgreSQLDatabase(w http.ResponseWriter, r *http.Request) {
 	dbName := strings.TrimSpace(r.URL.Query().Get("db_name"))
 	if dbName == "" {
 		utils.BadRequest(w, fmt.Errorf("invalid request payload: database_name is required"))
@@ -213,11 +213,11 @@ func (h *DatabaseManagerHandler) DeleteMySQLDatabase(w http.ResponseWriter, r *h
 		utils.BadRequest(w, fmt.Errorf("database '%s' does not exist", dbName))
 		return
 	}
-
+	fmt.Println(registryDB)
 	// ----------------------------------------
-	// 2 Drop the database from MySQL
+	// 2 Drop the database from PostgreSQL
 	// ----------------------------------------
-	err = h.DB.MySQL.DropMySQLDatabase(h.mysqlRootDSN, dbName, registryDB.User.Username)
+	err = h.DB.PostgreSQL.DropPostgreSQLDatabase(h.postgresqlRootDSN, dbName, registryDB.User.Username)
 	if err != nil {
 		utils.ServerError(w, fmt.Errorf("failed to drop database: %w", err))
 		return
@@ -236,7 +236,7 @@ func (h *DatabaseManagerHandler) DeleteMySQLDatabase(w http.ResponseWriter, r *h
 	// ----------------------------------------
 	// Create path to save SQL file
 	homeDir, _ := os.UserHomeDir()
-	sqlPath := filepath.Join(homeDir, "projuktisheba", "templates", "databases", "mysql", fmt.Sprintf("%s.sql", registryDB.DBName))
+	sqlPath := filepath.Join(homeDir, "projuktisheba", "templates", "databases", "postgresql", fmt.Sprintf("%s.sql", registryDB.DBName))
 	// Soft delete (ignore errors)
 	_ = exec.Command("sudo", []string{"rm", sqlPath}...)
 
@@ -250,10 +250,10 @@ func (h *DatabaseManagerHandler) DeleteMySQLDatabase(w http.ResponseWriter, r *h
 	utils.WriteJSON(w, http.StatusOK, resp)
 }
 
-// ResetMySQLDatabase connects to the specified MySQL database and truncates all tables,
+// ResetPostgreSQLDatabase connects to the specified PostgreSQL database and truncates all tables,
 // deleting all data and resetting auto-increment keys to 1.
 // It reads db_name from the query parameter list
-func (h *DatabaseManagerHandler) ResetMySQLDatabase(w http.ResponseWriter, r *http.Request) {
+func (h *PostgreSQLManagerHandler) ResetPostgreSQLDatabase(w http.ResponseWriter, r *http.Request) {
 	dbName := strings.TrimSpace(r.URL.Query().Get("db_name"))
 	if dbName == "" {
 		utils.BadRequest(w, fmt.Errorf("invalid request payload: database_name is required"))
@@ -269,17 +269,17 @@ func (h *DatabaseManagerHandler) ResetMySQLDatabase(w http.ResponseWriter, r *ht
 		return
 	}
 
-	if database.DBType != "mysql" {
-		utils.BadRequest(w, fmt.Errorf("database %s must be of type MySQL", database.DBName))
+	if database.DBType != "postgresql" {
+		utils.BadRequest(w, fmt.Errorf("database %s must be of type PostgreSQL", database.DBName))
 		return
 	}
 
 	// ----------------------------------------
-	// 2 Drop the database from MySQL
+	// 2 Drop the database from PostgreSQL
 	// ----------------------------------------
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true", database.User.Username, database.User.Password, "localhost", "3306", dbName)
+	dsn := fmt.Sprintf("postgres://%s:%s@localhost:%s/%s?sslmode=disable", database.User.Username, database.User.Password, "5432", dbName)
 
-	err = h.DB.MySQL.ResetMySQLDatabase(dsn, dbName)
+	err = h.DB.PostgreSQL.ResetPostgreSQLDatabase(dsn, dbName)
 	if err != nil {
 		utils.ServerError(w, fmt.Errorf("failed to reset database: %w", err))
 		return
@@ -295,7 +295,7 @@ func (h *DatabaseManagerHandler) ResetMySQLDatabase(w http.ResponseWriter, r *ht
 	utils.WriteJSON(w, http.StatusOK, resp)
 }
 
-// ListMySQLDatabases handles HTTP requests to fetch all MySQL databases.
+// ListPostgreSQLDatabases handles HTTP requests to fetch all PostgreSQL databases.
 // Response (JSON):
 //
 //	{
@@ -306,19 +306,20 @@ func (h *DatabaseManagerHandler) ResetMySQLDatabase(w http.ResponseWriter, r *ht
 //	}
 //
 // - Returns structured JSON response with consistent format.
-func (h *DatabaseManagerHandler) ListMySQLDatabases(w http.ResponseWriter, r *http.Request) {
+func (h *PostgreSQLManagerHandler) ListPostgreSQLDatabases(w http.ResponseWriter, r *http.Request) {
 
 	// Fetch databases
-	databases, err := h.DB.DBRegistry.GetAllDatabase(r.Context(), "mysql")
+	databases, err := h.DB.DBRegistry.GetAllDatabase(r.Context(), "postgresql")
 	if err != nil {
-		h.errorLog.Println("ERROR_01_ListMySQLUsers: failed to fetch database list:", err)
+		h.errorLog.Println("ERROR_01_ListPostgreSQLUsers: failed to fetch database list:", err)
 		utils.BadRequest(w, fmt.Errorf("failed to list databases: %w", err))
 		return
 	}
 
 	// Fetch database stats
 	for _, d := range databases {
-		d.DatabaseSizeMB, d.TableCount, _ = h.DB.MySQL.GetMySQLDatabaseStats(r.Context(), h.mysqlRootDSN, d.DBName)
+		dsn := fmt.Sprintf("postgres://%s:%s@127.0.0.1:5432/%s", d.User.Username, d.User.Password, d.DBName)
+		d.DatabaseSizeMB, d.TableCount, _ = h.DB.PostgreSQL.GetPostgreSQLDatabaseStats(r.Context(), dsn, d.DBName)
 	}
 
 	// Prepare successful response
@@ -337,11 +338,12 @@ func (h *DatabaseManagerHandler) ListMySQLDatabases(w http.ResponseWriter, r *ht
 	// Send response
 	utils.WriteJSON(w, http.StatusOK, resp)
 }
-func (h *DatabaseManagerHandler) CreateMySQLUser(w http.ResponseWriter, r *http.Request) {
+
+func (h *PostgreSQLManagerHandler) CreatePostgreSQLUser(w http.ResponseWriter, r *http.Request) {
 	// Parse JSON body
 	var payload models.DBUser
 	if err := utils.ReadJSON(w, r, &payload); err != nil {
-		h.errorLog.Println("ERROR_01_CreateMySQLUser: failed to parse request:", err)
+		h.errorLog.Println("ERROR_01_CreatePostgreSQLUser: failed to parse request:", err)
 		utils.BadRequest(w, fmt.Errorf("invalid request body: %w", err))
 		return
 	}
@@ -352,25 +354,25 @@ func (h *DatabaseManagerHandler) CreateMySQLUser(w http.ResponseWriter, r *http.
 		return
 	}
 	//specify user type
-	payload.UserType = "mysql"
+	payload.UserType = "postgresql"
 
-	// Create the MySQL user
-	err := h.DB.MySQL.CreateMySQLUser(r.Context(), h.mysqlRootDSN, payload.Username, payload.Password, []string{})
+	// Create the PostgreSQL user
+	err := h.DB.PostgreSQL.CreatePostgreSQLUser(r.Context(), h.postgresqlRootDSN, payload.Username, payload.Password, []string{})
 	if err != nil {
-		h.errorLog.Println("ERROR_02_CreateMySQLUser: failed to create mysql user: ", err)
-		utils.BadRequest(w, fmt.Errorf("failed to create MySQL user: %w", err))
+		h.errorLog.Println("ERROR_02_CreatePostgreSQLUser: failed to create postgresql user: ", err)
+		utils.BadRequest(w, fmt.Errorf("failed to create PostgreSQL user: %w", err))
 		return
 	}
 
-	// Call DBRegistry to create the MySQL user
+	// Call DBRegistry to create the PostgreSQL user
 	err = h.DB.DBRegistry.InsertDBUser(r.Context(), &payload)
 	if err != nil {
 		if strings.Contains(err.Error(), "db_users_username_key") {
 			utils.BadRequest(w, fmt.Errorf("User %s already exist", payload.Username))
 			return
 		}
-		h.errorLog.Println("ERROR_03_CreateMySQLUser: failed to insert into user registry:", err)
-		utils.BadRequest(w, fmt.Errorf("failed to insert MySQL user into user registry: %w", err))
+		h.errorLog.Println("ERROR_03_CreatePostgreSQLUser: failed to insert into user registry:", err)
+		utils.BadRequest(w, fmt.Errorf("failed to insert PostgreSQL user into user registry: %w", err))
 		return
 	}
 
@@ -382,7 +384,7 @@ func (h *DatabaseManagerHandler) CreateMySQLUser(w http.ResponseWriter, r *http.
 		DBName  string `json:"dbName"`
 	}{
 		Error:   false,
-		Message: "MySQL user created successfully",
+		Message: "PostgreSQL user created successfully",
 		User:    payload.Username,
 	}
 
@@ -390,15 +392,15 @@ func (h *DatabaseManagerHandler) CreateMySQLUser(w http.ResponseWriter, r *http.
 	utils.WriteJSON(w, http.StatusOK, resp)
 }
 
-// ListMySQLUsers handles HTTP requests to fetch all MySQL users.
+// ListPostgreSQLUsers handles HTTP requests to fetch all PostgreSQL users.
 // It retrieves users from the database registry, optionally decrypts their passwords,
 // and returns a structured JSON response.
 // Only users that are not soft-deleted are returned.
-func (h *DatabaseManagerHandler) ListMySQLUsers(w http.ResponseWriter, r *http.Request) {
+func (h *PostgreSQLManagerHandler) ListPostgreSQLUsers(w http.ResponseWriter, r *http.Request) {
 	// Fetch all users from the DBRegistry repository
-	users, err := h.DB.DBRegistry.GetAllUsers(r.Context(), "mysql")
+	users, err := h.DB.DBRegistry.GetAllUsers(r.Context(), "postgresql")
 	if err != nil {
-		h.errorLog.Println("ERROR_01_ListMySQLUsers: failed to fetch users:", err)
+		h.errorLog.Println("ERROR_01_ListPostgreSQLUsers: failed to fetch users:", err)
 		utils.BadRequest(w, fmt.Errorf("failed to list users: %w", err))
 		return
 	}
@@ -407,7 +409,7 @@ func (h *DatabaseManagerHandler) ListMySQLUsers(w http.ResponseWriter, r *http.R
 	// for _, u := range users {
 	// 	pass, err := utils.DecryptAES(u.Password)
 	// 	if err != nil {
-	// 		h.errorLog.Println("ERROR_02_ListMySQLUsers: failed to decrypt password:", err)
+	// 		h.errorLog.Println("ERROR_02_ListPostgreSQLUsers: failed to decrypt password:", err)
 	// 		u.Password = "" // Hide password if decryption fails
 	// 	} else {
 	// 		u.Password = pass

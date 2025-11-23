@@ -12,9 +12,7 @@ import DropzoneComponent from "../../components/form/form-elements/DropZone";
 import Select from "../../components/form/Select";
 import { Domain } from "../../interfaces/domain.interface";
 import {
-  domainManager,
-  sslManager,
-} from "../../services/domainManager.service";
+  domainManager,} from "../../services/domainManager.service";
 import { databaseManager } from "../../services/databaseManager.service";
 import ProjectProgress, {
   Step,
@@ -44,11 +42,11 @@ export default function ProjectUploader() {
     { title: "Initialize", description: "Setup project", hasError: false },
     { title: "Upload", description: "Upload files", hasError: false }, // error here
     { title: "Deploy", description: "Deploy to server", hasError: false },
-    {
-      title: "SSL Setup",
-      description: "Install SSL certificate and verify",
-      hasError: false,
-    },
+    // {
+    //   title: "SSL Setup",
+    //   description: "Install SSL certificate and verify",
+    //   hasError: false,
+    // },
   ]);
 
   // Function to mark/unmark error for a specific step
@@ -210,28 +208,28 @@ export default function ProjectUploader() {
       }
 
       // ====== Step 4: Issue SSL ======
-      try {
+      // try {
         
-        const sslResult = await sslManager.issueSSL(projectName);
+      //   const sslResult = await sslManager.issueSSL(projectName);
 
-        if (sslResult.error) {
-          setStepError(4, true);
+      //   if (sslResult.error) {
+      //     setStepError(4, true);
           
-          setUploadError("SSL setup failed: " + sslResult.message);
-        } else {
-          setStepError(4, false);
-          setCurrentStep(4);
-          setUploadSuccess(
-            (prev) => prev + " SSL setup completed successfully!"
-          );
-        }
-      } catch (err: any) {
-        console.error(err);
-        setStepError(4, true);
-        setUploadError(
-          "Unexpected error during SSL setup: " + (err?.message || err)
-        );
-      }
+      //     setUploadError("SSL setup failed: " + sslResult.message);
+      //   } else {
+      //     setStepError(4, false);
+      //     setCurrentStep(4);
+      //     setUploadSuccess(
+      //       (prev) => prev + " SSL setup completed successfully!"
+      //     );
+      //   }
+      // } catch (err: any) {
+      //   console.error(err);
+      //   setStepError(4, true);
+      //   setUploadError(
+      //     "Unexpected error during SSL setup: " + (err?.message || err)
+      //   );
+      // }
     } catch (err) {
       console.error(err);
       setUploadError("Project creation failed. Check console.");

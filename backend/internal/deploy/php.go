@@ -286,6 +286,7 @@ chdir = /
 	return nil
 }
 
+
 // DeletePHPSite removes all traces of a deployed PHP site
 func DeletePHPSite(ctx context.Context, projectPath, sysUser, domain string) error {
 	if domain == "" || sysUser == "" {

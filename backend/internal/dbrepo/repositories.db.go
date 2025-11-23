@@ -9,6 +9,7 @@ type DBRepository struct {
 	UserRepo    *UserRepo
 	DBRegistry *DatabaseRegistryRepo
 	MySQL    *MySQLManagerRepo
+	PostgreSQL    *PostgreSQLManagerRepo
 	Domain *DomainRepo
 	ProjectRepo *ProjectRepo
 }
@@ -19,6 +20,7 @@ func NewDBRepository(db *pgxpool.Pool) *DBRepository {
 		UserRepo:    NewUserRepo(db),
 		DBRegistry: newDatabaseRegistryRepo(db),
 		MySQL:    NewMySQLManagerRepo(),
+		PostgreSQL: NewPostgreSQLManagerRepo(),
 		Domain: NewDomainRepo(db),
 		ProjectRepo: NewProjectRepo(db),
 	}

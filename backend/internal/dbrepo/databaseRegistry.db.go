@@ -258,7 +258,9 @@ func (r *DatabaseRegistryRepo) GetDatabaseByName(ctx context.Context, dbName str
             d.user_id,
             d.deleted_at,
             COALESCE(u.username, '') AS username,
-            COALESCE(u.password, '') AS password
+            COALESCE(u.password, '') AS password,
+			d.created_at,
+			d.updated_at
         FROM databases d
         LEFT JOIN db_users u ON d.user_id = u.id
         WHERE d.db_name = $1
@@ -277,17 +279,14 @@ func (r *DatabaseRegistryRepo) GetDatabaseByName(ctx context.Context, dbName str
 		&deletedAt,
 		&d.User.Username,
 		&d.User.Password,
+		&d.CreatedAt,
+		&d.UpdatedAt,
 	)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return d, fmt.Errorf("database '%s' not found", dbName)
 		}
 		return d, err
-	}
-
-	// Soft-delete check
-	if deletedAt != nil {
-		return d, fmt.Errorf("database '%s' is deleted", dbName)
 	}
 
 	return d, nil
@@ -308,7 +307,9 @@ func (r *DatabaseRegistryRepo) GetAllDatabase(ctx context.Context, databaseType 
 			d.user_id,
 			d.deleted_at,
             COALESCE(u.username, '') AS username,
-            COALESCE(u.password, '') AS password
+            COALESCE(u.password, '') AS password,
+			d.created_at,
+			d.updated_at
         FROM databases d
         LEFT JOIN db_users u ON d.user_id = u.id
 		%s
@@ -335,6 +336,8 @@ func (r *DatabaseRegistryRepo) GetAllDatabase(ctx context.Context, databaseType 
 			&deletedAt,
 			&u.Username,
 			&u.Password,
+			&d.CreatedAt,
+			&d.UpdatedAt,
 		)
 		if err != nil {
 			return nil, err

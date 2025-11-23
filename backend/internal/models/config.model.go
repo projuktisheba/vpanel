@@ -35,6 +35,7 @@ type DBConfig struct {
 	DSN          string
 	DEVDSN       string
 	MySQLRootDSN string
+	PostgreSQLRootDSN string
 }
 
 type Config struct {
