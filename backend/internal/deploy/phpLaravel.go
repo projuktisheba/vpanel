@@ -259,24 +259,37 @@ func runComposerAsUser(projectPath, phpBin, sysUser string) error {
 	}
 	return fmt.Errorf("composer install failed: %s", outStr)
 }
-
 func runArtisanAsUser(projectPath, phpBin, sysUser string) error {
 	artisan := filepath.Join(projectPath, "artisan")
+
+	// Check if artisan exists
 	if _, err := os.Stat(artisan); err != nil {
-		// nothing to run
-		return nil
+		return nil // nothing to run
 	}
-	// key:generate
-	keyCmd := exec.Command("sudo", "-u", sysUser, phpBin, artisan, "key:generate", "--force")
-	keyCmd.Dir = projectPath
-	if out, err := keyCmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("artisan key:generate failed: %w: %s", err, string(out))
+
+	// List of artisan commands to run
+	commands := [][]string{
+		{"key:generate", "--force"},
+		{"optimize"},
+		{"storage:link"},
+		{"route:clear"},
+		{"route:cache"},
+		{"config:clear"},
+		{"config:cache"},
+		{"view:clear"},
+		{"view:cache"},
 	}
-	// optimize
-	optCmd := exec.Command("sudo", "-u", sysUser, phpBin, artisan, "optimize")
-	optCmd.Dir = projectPath
-	if out, err := optCmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("artisan optimize failed: %w: %s", err, string(out))
+
+	for _, args := range commands {
+		cmdArgs := append([]string{"-u", sysUser, phpBin, artisan}, args...)
+		cmd := exec.Command("sudo", cmdArgs...)
+		cmd.Dir = projectPath
+
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("artisan %s failed: %w: %s", strings.Join(args, " "), err, string(out))
+		}
 	}
+
 	return nil
 }

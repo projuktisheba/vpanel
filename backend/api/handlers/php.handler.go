@@ -63,7 +63,6 @@ func (h *PHPHandler) InitProject(w http.ResponseWriter, r *http.Request) {
 	projectData.ProjectName = utils.GetPHPProjectName(req.DomainName)
 	projectData.DomainName = req.DomainName
 	projectData.DBName = req.DBName
-	projectData.ProjectFramework = "PHP"
 	projectData.TemplatePath = ""
 	projectData.ProjectDirectory = utils.GetPHPProjectDirectory(req.DomainName)
 	projectData.Status = models.ProjectStatusInit
