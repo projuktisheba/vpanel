@@ -7,12 +7,14 @@ export const projectService = {
   // --- Create project after file upload ---
   InitiateProject: async (
     projectName: string,
-    databaseName: string
+    databaseName: string,
+    projectFramework: string
   ): Promise<{ success: boolean; message: string; project: Project }> => {
     try {
       const response = await HttpClient.post(`/project/php/init`, {
         domainName: projectName,
         dbName: databaseName,
+        projectFramework: projectFramework,
       });
 
       return {
@@ -101,12 +103,14 @@ export const projectService = {
   // --- Deploy PHP Project ---
   DeployProject: async (
     projectID: number,
-    projectName: string
+    projectName: string,
+    projectFramework: string
   ): Promise<{ success: boolean; message: string }> => {
     try {
       const formData = new FormData();
       formData.append("projectID", String(projectID));
       formData.append("projectName", projectName);
+      formData.append("projectFramework", projectFramework);
 
       const response = await HttpClient.post(`/project/php/deploy`, formData, {
         headers: { "Content-Type": "multipart/form-data" },

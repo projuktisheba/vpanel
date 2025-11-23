@@ -7,12 +7,11 @@ import PageBreadcrumb from "../../components/common/PageBreadCrumb";
 import PageMeta from "../../components/common/PageMeta";
 import Label from "../../components/form/Label";
 import Button from "../../components/ui/button/Button";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Option } from "lucide-react";
 import DropzoneComponent from "../../components/form/form-elements/DropZone";
 import Select from "../../components/form/Select";
 import { Domain } from "../../interfaces/domain.interface";
-import {
-  domainManager,} from "../../services/domainManager.service";
+import { domainManager } from "../../services/domainManager.service";
 import { databaseManager } from "../../services/databaseManager.service";
 import ProjectProgress, {
   Step,
@@ -26,6 +25,21 @@ export default function ProjectUploader() {
   const [projectName, setProjectName] = useState<string>("");
   const [projectNameError, setProjectNameError] = useState<string>("");
   const [domainList, setDomainList] = useState<Option[]>([]);
+
+  //project framework(Laravel, CodeIgniter)
+  const [projectFramework, setProjectFramework] = useState<string>("");
+  const [projectFrameworkError, setProjectFrameworkError] =
+    useState<string>("");
+  const projectFrameworkList: Option[] = [
+    {
+      value: "Laravel",
+      label: "Laravel",
+    },
+    {
+      value: "CodeIgniter",
+      label: "CodeIgniter",
+    },
+  ];
 
   //databases
   const [databaseList, setDatabaseList] = useState<Option[]>([]);
@@ -42,11 +56,6 @@ export default function ProjectUploader() {
     { title: "Initialize", description: "Setup project", hasError: false },
     { title: "Upload", description: "Upload files", hasError: false }, // error here
     { title: "Deploy", description: "Deploy to server", hasError: false },
-    // {
-    //   title: "SSL Setup",
-    //   description: "Install SSL certificate and verify",
-    //   hasError: false,
-    // },
   ]);
 
   // Function to mark/unmark error for a specific step
@@ -112,11 +121,15 @@ export default function ProjectUploader() {
   const handleProjectDeployment = async () => {
     // Step 0: Validate form fields
     if (!projectName) {
-      setProjectNameError("Please enter a valid domain name.");
+      setProjectNameError("Please select you project domain name.");
       return;
     }
     if (!databaseName) {
-      setDatabaseNameError("Please select a valid database.");
+      setDatabaseNameError("Please select your project database.");
+      return;
+    }
+    if (!projectFramework) {
+      setProjectFrameworkError("Please select you project framework.");
       return;
     }
     if (!file) {
@@ -140,7 +153,8 @@ export default function ProjectUploader() {
       // ====== Step 0: Initiate Project ======
       const initResponse = await projectService.InitiateProject(
         projectName,
-        databaseName
+        databaseName,
+        projectFramework
       );
 
       if (initResponse.success) {
@@ -186,13 +200,14 @@ export default function ProjectUploader() {
       try {
         const deployResult = await projectService.DeployProject(
           initResponse.project.id,
-          projectName
+          projectName, 
+          projectFramework,
         );
 
         if (deployResult.success) {
           setStepError(2, false);
           setCurrentStep(3);
-          setUploadSuccess("Project deployed successfully!");
+          setUploadSuccess((prev) => prev + " Project deployed successfully!");
         } else {
           setStepError(2, true);
           setUploadError(deployResult.message);
@@ -206,30 +221,6 @@ export default function ProjectUploader() {
         );
         return;
       }
-
-      // ====== Step 4: Issue SSL ======
-      // try {
-        
-      //   const sslResult = await sslManager.issueSSL(projectName);
-
-      //   if (sslResult.error) {
-      //     setStepError(4, true);
-          
-      //     setUploadError("SSL setup failed: " + sslResult.message);
-      //   } else {
-      //     setStepError(4, false);
-      //     setCurrentStep(4);
-      //     setUploadSuccess(
-      //       (prev) => prev + " SSL setup completed successfully!"
-      //     );
-      //   }
-      // } catch (err: any) {
-      //   console.error(err);
-      //   setStepError(4, true);
-      //   setUploadError(
-      //     "Unexpected error during SSL setup: " + (err?.message || err)
-      //   );
-      // }
     } catch (err) {
       console.error(err);
       setUploadError("Project creation failed. Check console.");
@@ -257,7 +248,7 @@ export default function ProjectUploader() {
           >
             <div className="space-y-6">
               {/* Row 1: Inputs */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-3 gap-6">
                 {/* Domain Name */}
                 <div className="w-full">
                   <Label>
@@ -291,6 +282,25 @@ export default function ProjectUploader() {
                   {databaseNameError && (
                     <div className="text-red-600 text-sm font-medium mt-1">
                       {databaseNameError}
+                    </div>
+                  )}
+                </div>
+
+                {/* Framework */}
+                <div className="w-full">
+                  <Label>
+                    Framework{" "}
+                    <span className="text-red-700 font-medium"> *</span>
+                  </Label>
+                  <Select
+                    options={projectFrameworkList}
+                    placeholder="Select Framework"
+                    onChange={(value) => setProjectFramework(value)}
+                    className="dark:bg-dark-900"
+                  />
+                  {projectFrameworkError && (
+                    <div className="text-red-600 text-sm font-medium mt-1">
+                      {projectFrameworkError}
                     </div>
                   )}
                 </div>
@@ -377,17 +387,18 @@ export default function ProjectUploader() {
                   </div>
                 )}
                 {/* Success Message */}
-                {currentStep==4 && (
+                {currentStep == 3 && (
                   <div className="mt-3 p-3 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-sm font-medium rounded border border-green-200 dark:border-green-800">
                     {uploadSuccess}
-                    visit at <a
-                    href={`https://${projectName}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 dark:text-blue-400 underline"
-                  >
-                    https://{projectName}
-                  </a>
+                    visit at{" "}
+                    <a
+                      href={`https://${projectName}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 dark:text-blue-400 underline"
+                    >
+                      https://{projectName}
+                    </a>
                   </div>
                 )}
               </div>
@@ -395,7 +406,7 @@ export default function ProjectUploader() {
               {/* Row 3: Action Button */}
               <div className="w-full pt-2">
                 <Button
-                  disabled={!projectName || !databaseName || !file || uploading}
+                  disabled={!projectName || !databaseName || !projectFramework || !file || uploading}
                   isHidden={uploading}
                   size={"md"}
                   variant="primary"
