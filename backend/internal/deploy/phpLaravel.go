@@ -144,10 +144,10 @@ chdir = /
 		return fmt.Errorf("chmod bootstrap cache: %w", err)
 	}
 
-	// 7) Run composer install (install -> fallback update). Run as sysUser via sudo -u for safety.
-	if err := runComposerAsUser(projectPath, phpBin, sysUser); err != nil {
-		return fmt.Errorf("composer install/update failed: %w", err)
-	}
+	// // 7) Run composer install (install -> fallback update). Run as sysUser via sudo -u for safety.
+	// if err := runComposerAsUser(projectPath, phpBin, sysUser); err != nil {
+	// 	return fmt.Errorf("composer install/update failed: %w", err)
+	// }
 
 	// 8) Run artisan key:generate + optimize (as sysUser)
 	if err := runArtisanAsUser(projectPath, phpBin, sysUser); err != nil {
