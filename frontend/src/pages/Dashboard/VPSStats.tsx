@@ -1,5 +1,5 @@
 import React, { useState, useEffect,  useRef } from 'react';
-import { Activity, Cpu, HardDrive, Network, Clock, TrendingUp, Server, ArrowDown, ArrowUp, Sun, Moon } from 'lucide-react';
+import { Activity, Cpu, HardDrive, Network, Clock, TrendingUp, Server, ArrowDown, ArrowUp } from 'lucide-react';
 
 // --- 1. CONTEXT AND THEME LOGIC ---
 
@@ -266,15 +266,15 @@ export function ServerStatsDashboard() {
             <div className="space-y-4">
               <div className="flex items-center justify-between rounded-lg bg-gray-100 p-4 dark:bg-gray-700">
                 <span className="text-sm font-medium text-gray-700 dark:text-gray-300">1 Minute Average</span>
-                <span className="text-2xl font-bold text-green-600 dark:text-green-400">{stats.load_avg_1.toFixed(2)}</span>
+                <span className="text-2xl font-bold text-gray-900 dark:text-white">{stats.load_avg_1.toFixed(2)}</span>
               </div>
               <div className="flex items-center justify-between rounded-lg bg-gray-100 p-4 dark:bg-gray-700">
                 <span className="text-sm font-medium text-gray-700 dark:text-gray-300">5 Minutes Average</span>
-                <span className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{stats.load_avg_5.toFixed(2)}</span>
+                <span className="text-2xl font-bold text-gray-900 dark:text-white">{stats.load_avg_5.toFixed(2)}</span>
               </div>
               <div className="flex items-center justify-between rounded-lg bg-gray-100 p-4 dark:bg-gray-700">
                 <span className="text-sm font-medium text-gray-700 dark:text-gray-300">15 Minutes Average</span>
-                <span className="text-2xl font-bold text-red-600 dark:text-red-400">{stats.load_avg_15.toFixed(2)}</span>
+                <span className="text-2xl font-bold text-gray-900 dark:text-white">{stats.load_avg_15.toFixed(2)}</span>
               </div>
             </div>
           </div>
