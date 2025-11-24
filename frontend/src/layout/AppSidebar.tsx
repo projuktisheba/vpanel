@@ -8,8 +8,6 @@ import {
   ChevronDownIcon,
   GridIcon,
   HorizontaLDots,
-  PageIcon,
-  UserCircleIcon,
 } from "../icons";
 import { useSidebar } from "../context/SidebarContext";
 import SidebarWidget from "./SidebarWidget";
@@ -50,20 +48,6 @@ const navItems: NavItem[] = [
     icon: <Globe />,
     subItems: [
       { name: "Domains", path: "/domain", pro: false },
-    ],
-  },
-  
-  {
-    icon: <UserCircleIcon />,
-    name: "User Profile",
-    path: "/profile",
-  },
-  {
-    name: "Pages",
-    icon: <PageIcon />,
-    subItems: [
-      { name: "Blank Page", path: "/blank", pro: false },
-      { name: "404 Error", path: "/error-404", pro: false },
     ],
   },
 ];
@@ -346,7 +330,11 @@ const AppSidebar: React.FC = () => {
             </div>
           </div>
         </nav>
-        {isExpanded || isHovered || isMobileOpen ? <SidebarWidget /> : null}
+        {isExpanded || isHovered || isMobileOpen ? (
+          <div className="absolute left-0 bottom-0 w-full ">
+            <SidebarWidget />
+          </div>
+        ) : null}
       </div>
     </aside>
   );
