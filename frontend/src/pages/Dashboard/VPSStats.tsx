@@ -1,5 +1,6 @@
 import React, { useState, useEffect,  useRef } from 'react';
 import { Activity, Cpu, HardDrive, Network, Clock, TrendingUp, Server, ArrowDown, ArrowUp } from 'lucide-react';
+import { WEB_SOCKET_URL } from '../../config/apiConfig';
 
 // --- 1. CONTEXT AND THEME LOGIC ---
 
@@ -103,7 +104,7 @@ export function ServerStatsDashboard() {
   }, []);
 
   const connectWebSocket = () => {
-    ws.current = new WebSocket('ws://localhost:8889/ws');
+    ws.current = new WebSocket(WEB_SOCKET_URL+'/ws');
 
     ws.current.onopen = () => {
       setConnected(true);
