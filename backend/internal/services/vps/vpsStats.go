@@ -15,6 +15,7 @@ import (
 )
 
 type ServerStats struct {
+	
 	Timestamp   int64   `json:"timestamp"`
 	CPUUsage    float64 `json:"cpu_usage"`
 	MemoryUsed  uint64  `json:"memory_used"`

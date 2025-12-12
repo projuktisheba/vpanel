@@ -10,11 +10,10 @@ import {
   ArrowDown,
   ArrowUp,
 } from "lucide-react";
-import { WEB_SOCKET_URL } from "../../config/apiConfig";
+// Assuming you have an API base URL defined for the REST endpoint
+import { API_BASE_URL, WEB_SOCKET_URL } from "../../config/apiConfig"; 
 
-// --- 1. CONTEXT AND THEME LOGIC ---
-
-// --- 3. SERVER STATS INTERFACES AND UTILITIES ---
+// --- 2. SERVER STATS INTERFACES AND UTILITIES ---
 
 interface ServerStats {
   timestamp: number;
@@ -49,6 +48,7 @@ const formatUptime = (seconds: number) => {
 };
 
 // --- Stat Card Component (Theme-Aware) ---
+// (StatCard component remains unchanged)
 
 const StatCard = ({
   icon: Icon,
@@ -68,7 +68,7 @@ const StatCard = ({
   // Card styling: bg-white light / bg-gray-800 dark
   <div
     className="rounded-xl border border-gray-200 bg-white p-6 shadow-md transition-all duration-300 hover:shadow-lg 
-                  dark:border-gray-700 dark:bg-gray-800 dark:shadow-xl dark:hover:shadow-2xl"
+             dark:border-gray-700 dark:bg-gray-800 dark:shadow-xl dark:hover:shadow-2xl"
   >
     <div className="flex items-center justify-between">
       <div>
@@ -111,11 +111,13 @@ const StatCard = ({
   </div>
 );
 
-// --- 4. MAIN DASHBOARD COMPONENT ---
+// --- 4. MAIN DASHBOARD COMPONENT (Updated) ---
 
 export function ServerStatsDashboard() {
   const [stats, setStats] = useState<ServerStats | null>(null);
   const [connected, setConnected] = useState(false);
+  // NEW STATE: To store the server's IP address
+  const [ipAddress, setIpAddress] = useState<string>("Fetching IP..."); 
   const ws = useRef<WebSocket | null>(null);
 
   useEffect(() => {
@@ -126,13 +128,31 @@ export function ServerStatsDashboard() {
       }
     };
   }, []);
+  
+  // NEW FUNCTION: To fetch the IP address via REST API
+  const fetchIpAddress = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/v1/ping`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      // Assuming the ping API returns an object like { ip: "192.168.1.1" }
+      setIpAddress(data.server_ip || "IP Unknown"); 
+    } catch (error) {
+      console.error("Error fetching IP address:", error);
+      setIpAddress("IP Error");
+    }
+  };
 
   const connectWebSocket = () => {
     ws.current = new WebSocket(WEB_SOCKET_URL + "/ws");
 
     ws.current.onopen = () => {
       setConnected(true);
-      console.log("WebSocket connected");
+      console.log("WebSocket connected. Fetching IP...");
+      // ACTION: Trigger IP fetch on successful connection
+      fetchIpAddress(); 
     };
 
     ws.current.onmessage = (event) => {
@@ -147,11 +167,14 @@ export function ServerStatsDashboard() {
 
     ws.current.onclose = () => {
       setConnected(false);
+      // Reset IP status on disconnect
+      setIpAddress("Disconnected"); 
       console.log("WebSocket disconnected, reconnecting in 3s...");
       setTimeout(connectWebSocket, 3000);
     };
   };
 
+  
   if (!stats) {
     return (
       // Light background default, dark background when 'dark' is present
@@ -186,16 +209,17 @@ export function ServerStatsDashboard() {
                 </p>
               </div>
             </div>
-            {/* Theme Toggle and Status */}
+            {/* Theme Toggle and Status (Updated) */}
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-3 rounded-lg border border-gray-300 bg-gray-100 px-4 py-2 dark:border-gray-700 dark:bg-gray-700/50">
                 <div
                   className={`h-2.5 w-2.5 rounded-full ${
                     connected ? "bg-green-500" : "bg-red-500"
-                  } ${connected ? "animate-pulse" : ""}`}
+                  } ${connected && ipAddress !== "Fetching IP..." ? "animate-pulse" : ""}`}
                 ></div>
+                {/* DISPLAY IP ADDRESS/STATUS HERE */}
                 <span className="text-sm font-medium text-gray-700 dark:text-white">
-                  {connected ? "Connected" : "Disconnected"}
+                  {connected ? ipAddress : "Disconnected"}
                 </span>
               </div>
             </div>
@@ -348,7 +372,7 @@ export function ServerStatsDashboard() {
         <div className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-center shadow-md dark:border-gray-700 dark:bg-gray-800">
           <p className="text-sm text-gray-500 dark:text-gray-400">
             Server Time:{" "}
-            <span className="font-medium text-gray-900 dark:text-white">
+            <span className="font-medium text-gray-900 dark:text-white mr-4">
               {new Date(stats.timestamp * 1000).toUTCString()}
             </span>
             Last updated:{" "}
