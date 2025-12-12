@@ -132,7 +132,7 @@ export function ServerStatsDashboard() {
   // NEW FUNCTION: To fetch the IP address via REST API
   const fetchIpAddress = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/v1/ping`);
+      const response = await fetch(`${API_BASE_URL}/ping`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
