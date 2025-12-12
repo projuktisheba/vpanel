@@ -1,9 +1,18 @@
-import React, { useState, useEffect,  useRef } from 'react';
-import { Activity, Cpu, HardDrive, Network, Clock, TrendingUp, Server, ArrowDown, ArrowUp } from 'lucide-react';
-import { WEB_SOCKET_URL } from '../../config/apiConfig';
+import React, { useState, useEffect, useRef } from "react";
+import {
+  Activity,
+  Cpu,
+  HardDrive,
+  Network,
+  Clock,
+  TrendingUp,
+  Server,
+  ArrowDown,
+  ArrowUp,
+} from "lucide-react";
+import { WEB_SOCKET_URL } from "../../config/apiConfig";
 
 // --- 1. CONTEXT AND THEME LOGIC ---
-
 
 // --- 3. SERVER STATS INTERFACES AND UTILITIES ---
 
@@ -25,11 +34,11 @@ interface ServerStats {
 }
 
 const formatBytes = (bytes: number) => {
-  if (bytes === 0) return '0 B';
+  if (bytes === 0) return "0 B";
   const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const sizes = ["B", "KB", "MB", "GB", "TB"];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return (bytes / Math.pow(k, i)).toFixed(2) + ' ' + sizes[i];
+  return (bytes / Math.pow(k, i)).toFixed(2) + " " + sizes[i];
 };
 
 const formatUptime = (seconds: number) => {
@@ -41,49 +50,64 @@ const formatUptime = (seconds: number) => {
 
 // --- Stat Card Component (Theme-Aware) ---
 
-const StatCard = ({ 
-  icon: Icon, 
-  title, 
-  value, 
-  subtitle, 
+const StatCard = ({
+  icon: Icon,
+  title,
+  value,
+  subtitle,
   color,
-  percentage
-}: { 
-  icon: React.ElementType; 
-  title: string; 
-  value: string; 
-  subtitle?: string; 
+  percentage,
+}: {
+  icon: React.ElementType;
+  title: string;
+  value: string;
+  subtitle?: string;
   color: string;
   percentage?: number;
 }) => (
   // Card styling: bg-white light / bg-gray-800 dark
-  <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-md transition-all duration-300 hover:shadow-lg 
-                  dark:border-gray-700 dark:bg-gray-800 dark:shadow-xl dark:hover:shadow-2xl">
+  <div
+    className="rounded-xl border border-gray-200 bg-white p-6 shadow-md transition-all duration-300 hover:shadow-lg 
+                  dark:border-gray-700 dark:bg-gray-800 dark:shadow-xl dark:hover:shadow-2xl"
+  >
     <div className="flex items-center justify-between">
       <div>
-        <p className="text-sm font-medium text-gray-500 dark:text-gray-400">{title}</p>
-        <h3 className="mt-1 text-3xl font-extrabold text-gray-900 dark:text-white">{value}</h3>
-        {subtitle && <p className="mt-1 text-xs text-gray-500 dark:text-gray-500">{subtitle}</p>}
+        <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
+          {title}
+        </p>
+        <h3 className="mt-1 text-3xl font-extrabold text-gray-900 dark:text-white">
+          {value}
+        </h3>
+        {subtitle && (
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-500">
+            {subtitle}
+          </p>
+        )}
       </div>
-      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-opacity-20" style={{ backgroundColor: `${color}25` }}>
+      <div
+        className="flex h-12 w-12 items-center justify-center rounded-full bg-opacity-20"
+        style={{ backgroundColor: `${color}25` }}
+      >
         <Icon className="h-6 w-6" style={{ color }} />
       </div>
     </div>
-    
+
     {/* Progress Bar (Theme-Aware) */}
     {percentage !== undefined && (
       <div className="mt-5">
         <div className="h-2 w-full rounded-full bg-gray-200 dark:bg-gray-700">
-          <div 
-            className="h-2 rounded-full transition-all duration-500" 
+          <div
+            className="h-2 rounded-full transition-all duration-500"
             style={{ width: `${percentage}%`, backgroundColor: color }}
           />
         </div>
       </div>
     )}
-    
+
     {/* Placeholder for chart area (Theme-Aware) */}
-    {percentage !== undefined && <div className="mt-4 h-10 w-full rounded-lg bg-gray-100 dark:bg-gray-700/50 animate-pulse"></div>}
+    {percentage !== undefined && (
+      <div className="mt-4 h-10 w-full rounded-lg bg-gray-100 dark:bg-gray-700/50 animate-pulse"></div>
+    )}
   </div>
 );
 
@@ -104,11 +128,11 @@ export function ServerStatsDashboard() {
   }, []);
 
   const connectWebSocket = () => {
-    ws.current = new WebSocket(WEB_SOCKET_URL+'/ws');
+    ws.current = new WebSocket(WEB_SOCKET_URL + "/ws");
 
     ws.current.onopen = () => {
       setConnected(true);
-      console.log('WebSocket connected');
+      console.log("WebSocket connected");
     };
 
     ws.current.onmessage = (event) => {
@@ -117,13 +141,13 @@ export function ServerStatsDashboard() {
     };
 
     ws.current.onerror = (error) => {
-      console.error('WebSocket error:', error);
+      console.error("WebSocket error:", error);
       setConnected(false);
     };
 
     ws.current.onclose = () => {
       setConnected(false);
-      console.log('WebSocket disconnected, reconnecting in 3s...');
+      console.log("WebSocket disconnected, reconnecting in 3s...");
       setTimeout(connectWebSocket, 3000);
     };
   };
@@ -134,7 +158,9 @@ export function ServerStatsDashboard() {
       <div className="flex h-screen items-center justify-center bg-gray-50 dark:bg-gray-900">
         <div className="text-center">
           <div className="mx-auto mb-4 h-16 w-16 animate-spin rounded-full border-b-4 border-t-4 border-blue-500"></div>
-          <p className="text-lg font-medium text-gray-600 dark:text-gray-300">Connecting to server...</p>
+          <p className="text-lg font-medium text-gray-600 dark:text-gray-300">
+            Connecting to server...
+          </p>
         </div>
       </div>
     );
@@ -143,7 +169,6 @@ export function ServerStatsDashboard() {
   return (
     // Outer Container: Sets the overall background theme color
     <div className="max-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-500">
-      
       {/* Header (Theme-Aware) */}
       <div className="border-b border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
         <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
@@ -153,18 +178,26 @@ export function ServerStatsDashboard() {
                 <Server className="h-6 w-6 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">VPS Monitor</h1>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Real-time server statistics</p>
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                  VPS Monitor
+                </h1>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Real-time server statistics
+                </p>
               </div>
             </div>
             {/* Theme Toggle and Status */}
-            <div className="flex items-center gap-4"> 
-                <div className="flex items-center gap-3 rounded-lg border border-gray-300 bg-gray-100 px-4 py-2 dark:border-gray-700 dark:bg-gray-700/50">
-                    <div className={`h-2.5 w-2.5 rounded-full ${connected ? 'bg-green-500' : 'bg-red-500'} ${connected ? 'animate-pulse' : ''}`}></div>
-                    <span className="text-sm font-medium text-gray-700 dark:text-white">
-                        {connected ? 'Connected' : 'Disconnected'}
-                    </span>
-                </div>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3 rounded-lg border border-gray-300 bg-gray-100 px-4 py-2 dark:border-gray-700 dark:bg-gray-700/50">
+                <div
+                  className={`h-2.5 w-2.5 rounded-full ${
+                    connected ? "bg-green-500" : "bg-red-500"
+                  } ${connected ? "animate-pulse" : ""}`}
+                ></div>
+                <span className="text-sm font-medium text-gray-700 dark:text-white">
+                  {connected ? "Connected" : "Disconnected"}
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -172,47 +205,49 @@ export function ServerStatsDashboard() {
 
       {/* Main Content Area */}
       <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
-        
         {/* Stats Grid */}
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4 mb-8">
           <StatCard
             icon={Cpu}
             title="CPU Usage"
             value={`${stats.cpu_usage.toFixed(1)}%`}
-            color="#3b82f6" 
+            color="#3b82f6"
             percentage={stats.cpu_usage}
           />
-          
+
           <StatCard
             icon={Activity}
             title="Memory"
             value={`${stats.memory_perc.toFixed(1)}%`}
-            subtitle={`${formatBytes(stats.memory_used)} / ${formatBytes(stats.memory_total)}`}
-            color="#10b981" 
+            subtitle={`${formatBytes(stats.memory_used)} / ${formatBytes(
+              stats.memory_total
+            )}`}
+            color="#10b981"
             percentage={stats.memory_perc}
           />
-          
+
           <StatCard
             icon={HardDrive}
             title="Disk Space"
             value={`${stats.disk_perc.toFixed(1)}%`}
-            subtitle={`${formatBytes(stats.disk_used)} / ${formatBytes(stats.disk_total)}`}
-            color="#f59e0b" 
+            subtitle={`${formatBytes(stats.disk_used)} / ${formatBytes(
+              stats.disk_total
+            )}`}
+            color="#f59e0b"
             percentage={stats.disk_perc}
           />
 
           <StatCard
             icon={Clock}
             title="Uptime"
-            value={formatUptime(stats.uptime).split(' ')[0]}
+            value={formatUptime(stats.uptime).split(" ")[0]}
             subtitle={formatUptime(stats.uptime)}
-            color="#8b5cf6" 
+            color="#8b5cf6"
           />
         </div>
 
         {/* Network & System Load Grid */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 mb-8">
-          
           {/* Network Card (Theme-Aware) */}
           <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-md dark:border-gray-700 dark:bg-gray-800">
             <div className="mb-6 flex items-center gap-3">
@@ -220,20 +255,28 @@ export function ServerStatsDashboard() {
                 <Network className="h-5 w-5 text-purple-600 dark:text-purple-400" />
               </div>
               <div>
-                <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Network Traffic</h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Real-time bandwidth usage (Bytes/s)</p>
+                <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+                  Network Traffic
+                </h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Real-time bandwidth usage (Bytes/s)
+                </p>
               </div>
             </div>
-            
+
             <div className="space-y-6">
               {/* Download (RX) */}
               <div className="rounded-lg bg-gray-100 p-4 dark:bg-gray-700/50">
                 <div className="mb-2 flex items-center justify-between">
-                  <div className='flex items-center gap-2'>
-                    <ArrowDown className='h-4 w-4 text-purple-600 dark:text-purple-400' />
-                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Download (RX)</span>
+                  <div className="flex items-center gap-2">
+                    <ArrowDown className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Download (RX)
+                    </span>
                   </div>
-                  <span className="text-lg font-bold text-gray-900 dark:text-white">{formatBytes(stats.network_rx)}/s</span>
+                  <span className="text-lg font-bold text-gray-900 dark:text-white">
+                    {formatBytes(stats.network_rx)}/s
+                  </span>
                 </div>
                 <div className="h-10 w-full rounded-lg bg-gray-200 dark:bg-gray-700/70 animate-pulse"></div>
               </div>
@@ -241,11 +284,15 @@ export function ServerStatsDashboard() {
               {/* Upload (TX) */}
               <div className="rounded-lg bg-gray-100 p-4 dark:bg-gray-700/50">
                 <div className="mb-2 flex items-center justify-between">
-                  <div className='flex items-center gap-2'>
-                    <ArrowUp className='h-4 w-4 text-pink-600 dark:text-pink-400' />
-                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Upload (TX)</span>
+                  <div className="flex items-center gap-2">
+                    <ArrowUp className="h-4 w-4 text-pink-600 dark:text-pink-400" />
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Upload (TX)
+                    </span>
                   </div>
-                  <span className="text-lg font-bold text-gray-900 dark:text-white">{formatBytes(stats.network_tx)}/s</span>
+                  <span className="text-lg font-bold text-gray-900 dark:text-white">
+                    {formatBytes(stats.network_tx)}/s
+                  </span>
                 </div>
                 <div className="h-10 w-full rounded-lg bg-gray-200 dark:bg-gray-700/70 animate-pulse"></div>
               </div>
@@ -259,23 +306,39 @@ export function ServerStatsDashboard() {
                 <TrendingUp className="h-5 w-5 text-cyan-600 dark:text-cyan-400" />
               </div>
               <div>
-                <h3 className="text-xl font-semibold text-gray-900 dark:text-white">System Load</h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Average load metrics</p>
+                <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+                  System Load
+                </h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Average load metrics
+                </p>
               </div>
             </div>
 
             <div className="space-y-4">
               <div className="flex items-center justify-between rounded-lg bg-gray-100 p-4 dark:bg-gray-700">
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">1 Minute Average</span>
-                <span className="text-2xl font-bold text-gray-900 dark:text-white">{stats.load_avg_1.toFixed(2)}</span>
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  1 Minute Average
+                </span>
+                <span className="text-2xl font-bold text-gray-900 dark:text-white">
+                  {stats.load_avg_1.toFixed(2)}
+                </span>
               </div>
               <div className="flex items-center justify-between rounded-lg bg-gray-100 p-4 dark:bg-gray-700">
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">5 Minutes Average</span>
-                <span className="text-2xl font-bold text-gray-900 dark:text-white">{stats.load_avg_5.toFixed(2)}</span>
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  5 Minutes Average
+                </span>
+                <span className="text-2xl font-bold text-gray-900 dark:text-white">
+                  {stats.load_avg_5.toFixed(2)}
+                </span>
               </div>
               <div className="flex items-center justify-between rounded-lg bg-gray-100 p-4 dark:bg-gray-700">
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">15 Minutes Average</span>
-                <span className="text-2xl font-bold text-gray-900 dark:text-white">{stats.load_avg_15.toFixed(2)}</span>
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  15 Minutes Average
+                </span>
+                <span className="text-2xl font-bold text-gray-900 dark:text-white">
+                  {stats.load_avg_15.toFixed(2)}
+                </span>
               </div>
             </div>
           </div>
@@ -284,7 +347,14 @@ export function ServerStatsDashboard() {
         {/* Footer (Theme-Aware) */}
         <div className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-center shadow-md dark:border-gray-700 dark:bg-gray-800">
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            Last updated: <span className="font-medium text-gray-900 dark:text-white">{new Date(stats.timestamp * 1000).toLocaleTimeString()}</span>
+            Server Time:{" "}
+            <span className="font-medium text-gray-900 dark:text-white">
+              {new Date(stats.timestamp * 1000).toUTCString()}
+            </span>
+            Last updated:{" "}
+            <span className="font-medium text-gray-900 dark:text-white">
+              {new Date(stats.timestamp * 1000).toLocaleTimeString()}
+            </span>
           </p>
         </div>
       </div>

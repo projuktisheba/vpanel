@@ -4,17 +4,14 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"os/exec"
+	"runtime"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
-	
-	"github.com/shirou/gopsutil/v3/cpu"
-	"github.com/shirou/gopsutil/v3/disk"
-	"github.com/shirou/gopsutil/v3/load"
-	"github.com/shirou/gopsutil/v3/mem"
-	"github.com/shirou/gopsutil/v3/net"
-	"github.com/shirou/gopsutil/v3/host"
 )
 
 type ServerStats struct {
@@ -36,28 +33,19 @@ type ServerStats struct {
 
 var (
 	upgrader = websocket.Upgrader{
-		CheckOrigin: func(r *http.Request) bool {
-			return true
-		},
+		CheckOrigin: func(r *http.Request) bool { return true },
 	}
 	clients   = make(map[*websocket.Conn]bool)
 	clientsMu sync.Mutex
 	broadcast = make(chan ServerStats)
-	
-	// State variables needed for calculating delta-based stats
-	prevNetStats net.IOCountersStat
-    lastNetTime time.Time
+
+	prevRx   uint64
+	prevTx   uint64
+	prevTime time.Time
+	netMu    sync.Mutex
 )
 
 func RunWebsocketServer() {
-	// Initialize previous network stats for delta calculation.
-	netStats, _ := net.IOCounters(false)
-	if len(netStats) > 0 {
-		prevNetStats = netStats[0]
-	}
-    // Set initial time for network rate calculation
-    lastNetTime = time.Now()
-
 	http.HandleFunc("/ws", handleWebSocket)
 	http.HandleFunc("/api/stats", handleHTTPStats)
 
@@ -66,6 +54,7 @@ func RunWebsocketServer() {
 
 	log.Println("Server started on :8889")
 	log.Fatal(http.ListenAndServe(":8889", nil))
+
 }
 
 func handleWebSocket(w http.ResponseWriter, r *http.Request) {
@@ -79,7 +68,6 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	clientsMu.Lock()
 	clients[conn] = true
 	clientsMu.Unlock()
-
 	log.Println("Client connected")
 
 	for {
@@ -92,24 +80,23 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
+
 }
 
 func handleHTTPStats(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	stats := collectCurrentStatsGopsutil()
+	stats := collectCurrentStats()
 	json.NewEncoder(w).Encode(stats)
+
 }
 
 func handleBroadcast() {
-	for {
-		stats := <-broadcast
-
+	for stats := range broadcast {
 		clientsMu.Lock()
 		for client := range clients {
-			err := client.WriteJSON(stats)
-			if err != nil {
+			if err := client.WriteJSON(stats); err != nil {
 				log.Println("Write error:", err)
 				client.Close()
 				delete(clients, client)
@@ -120,133 +107,244 @@ func handleBroadcast() {
 }
 
 func collectStats() {
-	// The interval dictates how frequently new stats are collected
-	ticker := time.NewTicker(1 * time.Second)
+	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 
 	for range ticker.C {
-		stats := collectCurrentStatsGopsutil()
+		stats := collectCurrentStats()
 		broadcast <- stats
+	}
+
+}
+
+func collectCurrentStats() ServerStats {
+	return ServerStats{
+		Timestamp:   time.Now().Unix(),
+		CPUUsage:    getCPUUsage(),
+		MemoryUsed:  getMemoryUsed(),
+		MemoryTotal: getMemoryTotal(),
+		MemoryPerc:  getMemoryPercent(),
+		DiskUsed:    getDiskUsed(),
+		DiskTotal:   getDiskTotal(),
+		DiskPerc:    getDiskPercent(),
+		NetworkRx:   getNetworkRxSpeed(),
+		NetworkTx:   getNetworkTxSpeed(),
+		LoadAvg1:    getLoadAvg1(),
+		LoadAvg5:    getLoadAvg5(),
+		LoadAvg15:   getLoadAvg15(),
+		Uptime:      getUptime(),
 	}
 }
 
-// --- RESOURCE-OPTIMIZED STATS COLLECTION (Fixed for Accuracy) ---
-func collectCurrentStatsGopsutil() ServerStats {
-	var stats ServerStats
-	stats.Timestamp = time.Now().Unix()
 
-	var wg sync.WaitGroup
-
-	// Helper function for concurrent data collection
-	collect := func(f func() error) {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			if err := f(); err != nil {
-				log.Printf("Error collecting stat: %v", err) 
-			}
-		}()
+func getCPUUsage() float64 {
+	if runtime.GOOS != "linux" {
+		return 0.0
 	}
 
-	// 1. CPU Usage: Block for 1 second to get accurate rate
-	collect(func() error {
-		// This blocks for 1 second, calculating the average CPU usage during that concurrent time.
-		percentages, err := cpu.Percent(time.Second, false) 
-		if err != nil {
-			return err
-		}
-		if len(percentages) > 0 {
-			stats.CPUUsage = percentages[0]
-		}
-		return nil
-	})
+	cmd := exec.Command("sh", "-c", "top -bn1 | grep 'Cpu(s)' | sed 's/.*, *\\([0-9.]*\\)%* id.*/\\1/' | awk '{print 100 - $1}'")
+	output, err := cmd.Output()
+	if err != nil {
+		return 0.0
+	}
 
-	// 2. Memory Stats
-	collect(func() error {
-		v, err := mem.VirtualMemory()
-		if err != nil {
-			return err
-		}
-		stats.MemoryUsed = v.Used
-		stats.MemoryTotal = v.Total
-		stats.MemoryPerc = v.UsedPercent
-		return nil
-	})
+	usage, _ := strconv.ParseFloat(strings.TrimSpace(string(output)), 64)
+	return usage
+}
 
-	// 3. Disk Stats
-	collect(func() error {
-		d, err := disk.Usage("/")
-		if err != nil {
-			return err
-		}
-		stats.DiskUsed = d.Used
-		stats.DiskTotal = d.Total
-		stats.DiskPerc = d.UsedPercent
-		return nil
-	})
+func getMemoryUsed() uint64 {
+	if runtime.GOOS != "linux" {
+		return 0
+	}
+	cmd := exec.Command("sh", "-c", "free -b | grep Mem | awk '{print $3}'")
+	output, err := cmd.Output()
+	if err != nil {
+		return 0
+	}
+	used, _ := strconv.ParseUint(strings.TrimSpace(string(output)), 10, 64)
+	return used
+}
 
-	// 4. Load Averages
-	collect(func() error {
-		l, err := load.Avg()
-		if err != nil {
-			return err
-		}
-		stats.LoadAvg1 = l.Load1
-		stats.LoadAvg5 = l.Load5
-		stats.LoadAvg15 = l.Load15
-		return nil
-	})
-	
-	// 5. Uptime
-	collect(func() error {
-		u, err := host.Uptime()
-		if err != nil {
-			return err
-		}
-		stats.Uptime = u
-		return nil
-	})
-	
-	// 6. Network: Use actual time delta for accurate Bytes/Second rate
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-        
-        // Calculate the time difference since the last successful collection
-        now := time.Now()
-        timeDelta := now.Sub(lastNetTime).Seconds()
-        lastNetTime = now // Update global state for next cycle
+func getMemoryTotal() uint64 {
+	if runtime.GOOS != "linux" {
+		return 0
+	}
+	cmd := exec.Command("sh", "-c", "free -b | grep Mem | awk '{print $2}'")
+	output, err := cmd.Output()
+	if err != nil {
+		return 0
+	}
+	total, _ := strconv.ParseUint(strings.TrimSpace(string(output)), 10, 64)
+	return total
+}
 
-		netStats, err := net.IOCounters(false) 
-		if err != nil {
-			log.Printf("Error collecting network stats: %v", err)
-			return
+func getMemoryPercent() float64 {
+	total := getMemoryTotal()
+	if total == 0 {
+		return 0.0
+	}
+	return float64(getMemoryUsed()) / float64(total) * 100
+}
+
+func getDiskUsed() uint64 {
+	if runtime.GOOS != "linux" {
+		return 0
+	}
+	cmd := exec.Command("sh", "-c", "df / | tail -1 | awk '{print $3}'")
+	output, err := cmd.Output()
+	if err != nil {
+		return 0
+	}
+	used, _ := strconv.ParseUint(strings.TrimSpace(string(output)), 10, 64)
+	return used * 1024
+}
+
+func getDiskTotal() uint64 {
+	if runtime.GOOS != "linux" {
+		return 0
+	}
+	cmd := exec.Command("sh", "-c", "df / | tail -1 | awk '{print $2}'")
+	output, err := cmd.Output()
+	if err != nil {
+		return 0
+	}
+	total, _ := strconv.ParseUint(strings.TrimSpace(string(output)), 10, 64)
+	return total * 1024
+}
+
+func getDiskPercent() float64 {
+	if runtime.GOOS != "linux" {
+		return 0.0
+	}
+	cmd := exec.Command("sh", "-c", "df / | tail -1 | awk '{print $5}' | sed 's/%//'")
+	output, err := cmd.Output()
+	if err != nil {
+		return 0.0
+	}
+	perc, _ := strconv.ParseFloat(strings.TrimSpace(string(output)), 64)
+	return perc
+}
+
+// --- NETWORK FUNCTIONS WITH SPEED ---
+func getNetworkRx() uint64 {
+	if runtime.GOOS != "linux" {
+		return 0
+	}
+	cmd := exec.Command("sh", "-c", `for iface in /sys/class/net/*; do
+if [ "$(basename $iface)" != "lo" ]; then
+    cat $iface/statistics/rx_bytes
+    break
+fi
+done`)
+	output, err := cmd.Output()
+	if err != nil {
+		return 0
+	}
+	rx, _ := strconv.ParseUint(strings.TrimSpace(string(output)), 10, 64)
+	return rx
+}
+
+func getNetworkTx() uint64 {
+	if runtime.GOOS != "linux" {
+		return 0
+	}
+	cmd := exec.Command("sh", "-c", `for iface in /sys/class/net/*; do
+if [ "$(basename $iface)" != "lo" ]; then
+    cat $iface/statistics/tx_bytes
+    break
+fi
+done`)
+	output, err := cmd.Output()
+	if err != nil {
+		return 0
+	}
+	tx, _ := strconv.ParseUint(strings.TrimSpace(string(output)), 10, 64)
+	return tx
+}
+
+func getNetworkRxSpeed() uint64 {
+	netMu.Lock()
+	defer netMu.Unlock()
+	currentRx := getNetworkRx()
+	now := time.Now()
+	var speed uint64
+	if !prevTime.IsZero() {
+		interval := now.Sub(prevTime).Seconds()
+		if interval > 0 {
+			speed = uint64(float64(currentRx-prevRx) / interval)
 		}
-		
-		if len(netStats) == 0 || timeDelta == 0 {
-			return
+	}
+	prevRx = currentRx
+	prevTime = now
+	return speed
+}
+
+func getNetworkTxSpeed() uint64 {
+	netMu.Lock()
+	defer netMu.Unlock()
+	currentTx := getNetworkTx()
+	now := time.Now()
+	var speed uint64
+	if !prevTime.IsZero() {
+		interval := now.Sub(prevTime).Seconds()
+		if interval > 0 {
+			speed = uint64(float64(currentTx-prevTx) / interval)
 		}
+	}
+	prevTx = currentTx
+	prevTime = now
+	return speed
+}
 
-		currentNetStats := netStats[0]
-		
-		if prevNetStats.BytesRecv > 0 || prevNetStats.BytesSent > 0 {
-            // Calculate total bytes transferred
-            rxBytesDelta := currentNetStats.BytesRecv - prevNetStats.BytesRecv
-			txBytesDelta := currentNetStats.BytesSent - prevNetStats.BytesSent
-            
-            // Normalize by timeDelta (Bytes / Seconds)
-            stats.NetworkRx = uint64(float64(rxBytesDelta) / timeDelta)
-            stats.NetworkTx = uint64(float64(txBytesDelta) / timeDelta)
+// --- LOAD AND UPTIME ---
+func getLoadAvg1() float64 {
+	if runtime.GOOS != "linux" {
+		return 0.0
+	}
+	cmd := exec.Command("sh", "-c", "cat /proc/loadavg | awk '{print $1}'")
+	output, err := cmd.Output()
+	if err != nil {
+		return 0.0
+	}
+	load, _ := strconv.ParseFloat(strings.TrimSpace(string(output)), 64)
+	return load
+}
 
-		} else {
-			stats.NetworkRx = 0
-			stats.NetworkTx = 0
-		}
-		
-		prevNetStats = currentNetStats
-	}()
+func getLoadAvg5() float64 {
+	if runtime.GOOS != "linux" {
+		return 0.0
+	}
+	cmd := exec.Command("sh", "-c", "cat /proc/loadavg | awk '{print $2}'")
+	output, err := cmd.Output()
+	if err != nil {
+		return 0.0
+	}
+	load, _ := strconv.ParseFloat(strings.TrimSpace(string(output)), 64)
+	return load
+}
 
-	wg.Wait()
+func getLoadAvg15() float64 {
+	if runtime.GOOS != "linux" {
+		return 0.0
+	}
+	cmd := exec.Command("sh", "-c", "cat /proc/loadavg | awk '{print $3}'")
+	output, err := cmd.Output()
+	if err != nil {
+		return 0.0
+	}
+	load, _ := strconv.ParseFloat(strings.TrimSpace(string(output)), 64)
+	return load
+}
 
-	return stats
+func getUptime() uint64 {
+	if runtime.GOOS != "linux" {
+		return 0
+	}
+	cmd := exec.Command("sh", "-c", "cat /proc/uptime | awk '{print $1}' | cut -d. -f1")
+	output, err := cmd.Output()
+	if err != nil {
+		return 0
+	}
+	uptime, _ := strconv.ParseUint(strings.TrimSpace(string(output)), 10, 64)
+	return uptime
 }
